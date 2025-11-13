@@ -1,0 +1,38 @@
+{{!-- home.hbs --}}
+<div class="text-center mb-5">
+  <h1 class="fw-bold">Bienvenido a Asmel</h1>
+  <p class="lead">Gestiona tu empresa, turnos y usuarios de forma sencilla.</p>
+</div>
+
+<div class="row justify-content-center g-4">
+  <!-- Perfil usuario -->
+  <div class="col-md-4">
+    <div class="card shadow-sm p-4 text-center">
+      <h4 class="mb-3">Mi perfil</h4>
+      <p>Revisa y actualiza tus datos personales y de empresa.</p>
+      <a href="/profile" class="btn btn-primary w-100">Ir al perfil</a>
+    </div>
+  </div>
+
+  <!-- Empresas -->
+  <div class="col-md-4">
+    <div class="card shadow-sm p-4 text-center">
+      <h4 class="mb-3">Empresas</h4>
+      <p>Consulta y administra tus empresas registradas.</p>
+      <a href="/empresas" class="btn btn-success w-100">Ver empresas</a>
+    </div>
+  </div>
+
+  <!-- Panel Admin -->
+  {{#if user}}
+    {{#if (eq user.role "admin")}}
+    <div class="col-md-4">
+      <div class="card shadow-sm p-4 text-center">
+        <h4 class="mb-3">Panel Admin</h4>
+        <p>Accede a todos los datos de usuarios y empresas.</p>
+        <a href="/admin" class="btn btn-warning w-100">Ir al panel admin</a>
+      </div>
+    </div>
+    {{/if}}
+  {{/if}}
+</div>

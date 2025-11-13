@@ -1,0 +1,34 @@
+
+.env
+# Node
+node_modules/
+npm-debug.log
+yarn-debug.log
+yarn-error.log
+
+# Build
+dist/
+build/
+.cache/
+.out/
+.next/
+.vercel/
+tmp/
+temp/
+
+# Environment
+.env
+.env.local
+.env.production
+.env.development
+
+# Logs
+logs/
+*.log
+
+# OS Files
+.DS_Store
+Thumbs.db
+
+# Redis dump (por si lo tenés)
+dump.rdb

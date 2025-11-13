@@ -1,0 +1,41 @@
+<h2>Registro Empresa</h2>
+<form id="registerForm">
+  <input name="nombre" placeholder="Nombre" required />
+  <input name="cuit" placeholder="CUIT" required />
+  <input name="email" type="email" placeholder="Email" required />
+  <input name="password" type="password" placeholder="Contraseña" required />
+  <button type="submit">Registrar</button>
+</form>
+
+<h2>Login Empresa</h2>
+<form id="loginForm">
+  <input name="cuit" placeholder="CUIT" required />
+  <input name="password" type="password" placeholder="Contraseña" required />
+  <button type="submit">Iniciar sesión</button>
+</form>
+
+<script>
+document.getElementById("registerForm").addEventListener("submit", async e => {
+  e.preventDefault();
+  const data = Object.fromEntries(new FormData(e.target));
+  const res = await fetch("/api/empresa/register", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data)
+  });
+  const result = await res.json();
+  alert(result.message);
+});
+
+document.getElementById("loginForm").addEventListener("submit", async e => {
+  e.preventDefault();
+  const data = Object.fromEntries(new FormData(e.target));
+  const res = await fetch("/api/empresa/login", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data)
+  });
+  const result = await res.json();
+  alert(result.message);
+});
+</script>
