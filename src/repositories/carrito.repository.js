@@ -1,3 +1,4 @@
+// src/repositories/carrito.repository.js
 import Turno from "../models/turno.model.js";
 
 export const CarritoRepository = {
@@ -22,7 +23,9 @@ export const CarritoRepository = {
         ...data,
         provisional: true,
         confirmado: false,
+        estado: data.estado || "provisional",
       });
+
       await turno.save();
       console.log("✅ [CarritoRepository] Turno agregado al carrito:", turno._id);
       return turno;
@@ -69,7 +72,7 @@ export const CarritoRepository = {
     try {
       const result = await Turno.updateMany(
         { user: userId, provisional: true, confirmado: false },
-        { $set: { confirmado: true, provisional: false } }
+        { $set: { confirmado: true, provisional: false, estado: "confirmado" } }
       );
       console.log(`✅ [CarritoRepository] ${result.modifiedCount} turnos confirmados`);
       return result;

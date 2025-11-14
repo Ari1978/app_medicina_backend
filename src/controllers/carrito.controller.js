@@ -1,7 +1,6 @@
 import { CarritoService } from "../services/carrito.service.js";
 
 export const CarritoController = {
-  // 🧺 Obtener carrito (turnos provisionales)
   async getCarrito(req, res) {
     try {
       const userId = req.user._id;
@@ -13,7 +12,6 @@ export const CarritoController = {
     }
   },
 
-  // ➕ Agregar turno al carrito (provisional)
   async addToCarrito(req, res) {
     try {
       const userId = req.user._id;
@@ -25,7 +23,6 @@ export const CarritoController = {
     }
   },
 
-  // 🗑️ Eliminar un turno del carrito
   async deleteTurnoCarrito(req, res) {
     try {
       const userId = req.user._id;
@@ -38,7 +35,6 @@ export const CarritoController = {
     }
   },
 
-  // 🧹 Vaciar carrito
   async clearCarrito(req, res) {
     try {
       const userId = req.user._id;
@@ -50,7 +46,6 @@ export const CarritoController = {
     }
   },
 
-  // ✅ Confirmar todos los turnos provisionales
   async confirmarCarrito(req, res) {
     try {
       const userId = req.user._id;
