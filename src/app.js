@@ -9,7 +9,6 @@ import compression from "compression";
 import morgan from "morgan";
 import rateLimit from "express-rate-limit";
 
-// Routers
 import userRouter from "./routers/user.router.js";
 import turnoRouter from "./routers/turno.router.js";
 import carritoRouter from "./routers/carrito.router.js";
@@ -24,17 +23,16 @@ const app = express();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// ------------------------ ENV ------------------------
 const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:3000";
 const IS_PROD = process.env.NODE_ENV === "production";
 
-// Normaliza origen por si viene con / final
-const normalizeOrigin = (url) => url.replace(/\/$/, "");
+// Normaliza origen
+const normalizeOrigin = (url) => url?.replace(/\/$/, "");
 
-// ------------------------ TRUST PROXY ------------------------
+// -------------------- TRUST PROXY --------------------
 app.set("trust proxy", 1);
 
-// ------------------------ SEGURIDAD ------------------------
+// -------------------- SECURITY --------------------
 app.use(
   helmet({
     crossOriginResourcePolicy: { policy: "cross-origin" },
@@ -44,10 +42,10 @@ app.use(
 
 app.use(compression());
 
-// ------------------------ LOGGING ------------------------
+// -------------------- LOGGING --------------------
 app.use(morgan(IS_PROD ? "combined" : "dev"));
 
-// ------------------------ RATE LIMIT ------------------------
+// -------------------- RATE LIMIT --------------------
 app.use(
   rateLimit({
     windowMs: 15 * 60 * 1000,
@@ -57,45 +55,45 @@ app.use(
   })
 );
 
-// ------------------------ CORS (EXPRESS 5 SAFE) ------------------------
+// -------------------- CORS (CORRECTO PARA EXPRESS 5) --------------------
 app.use(
   cors({
     origin: (origin, callback) => {
       if (!origin) return callback(null, true);
 
       const clean = normalizeOrigin(origin);
-      const allowed = [
-        normalizeOrigin(FRONTEND_URL),
-        "https://app-medicina-front.vercel.app",
-        "https://app-medicina-front-ari1978.vercel.app",
-        "https://app-medicina-front-1epbntq0w-ari1978s-projects.vercel.app",
-        "http://localhost:3000",
-      ];
 
-      if (allowed.includes(clean)) {
+      // Permitimos TODOS los subdominios de vercel del proyecto
+      if (
+        clean.includes("vercel.app") &&
+        clean.includes("app-medicina-front")
+      ) {
         return callback(null, true);
       }
 
+      // Permitidos manuales
+      const allowed = [
+        normalizeOrigin(FRONTEND_URL),
+        "https://app-medicina-front.vercel.app",
+        "http://localhost:3000",
+      ];
+
+      if (allowed.includes(clean)) return callback(null, true);
+
       console.warn("⛔ CORS bloqueado:", clean);
-      return callback(new Error("CORS blocked"));
+      callback(new Error("CORS blocked"));
     },
+
     credentials: true,
   })
 );
 
-// ------------------------ PRE-FLIGHT FIX EXPRESS 5 ------------------------
-app.options(/.*/, (req, res) => {
-  res.setHeader("Access-Control-Allow-Origin", req.headers.origin || "");
-  res.setHeader("Access-Control-Allow-Credentials", "true");
-  res.setHeader(
-    "Access-Control-Allow-Methods",
-    "GET,POST,PUT,PATCH,DELETE,OPTIONS"
-  );
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
-  res.sendStatus(200);
-});
+// -------------------- EXPRESS 5 AUTOMÁTICO PARA OPTIONS --------------------
+// ❗ Ya NO agregamos un handler manual de OPTIONS.
+// cors() maneja preflight correctamente.
+// Esto evita el bug de Access-Control-Allow-Origin en blanco.
 
-// ------------------------ BODY PARSERS ------------------------
+// -------------------- BODY PARSERS --------------------
 app.use(
   express.json({
     limit: "1mb",
@@ -108,19 +106,11 @@ app.use(
 app.use(express.urlencoded({ extended: true, limit: "1mb" }));
 app.use(cookieParser());
 
-// Manejo de JSON inválido
-app.use((err, req, res, next) => {
-  if (err instanceof SyntaxError && err.status === 400) {
-    return res.status(400).json({ message: "JSON malformado" });
-  }
-  next();
-});
-
-// ------------------------ STATIC FILES ------------------------
+// -------------------- STATIC FILES --------------------
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 app.use(express.static(path.join(__dirname, "public")));
 
-// ------------------------ HEALTHCHECK ------------------------
+// -------------------- HEALTHCHECK --------------------
 app.get("/api/health", (_req, res) => {
   res.json({
     ok: true,
@@ -129,7 +119,7 @@ app.get("/api/health", (_req, res) => {
   });
 });
 
-// ------------------------ API ROUTES ------------------------
+// -------------------- ROUTES --------------------
 app.use("/api/user", userRouter);
 app.use("/api/staff", staffUserRouter);
 app.use("/api/admin", adminRouter);
@@ -140,7 +130,7 @@ app.use("/api/marketing", marketingRouter);
 app.use("/api/asesoramiento", asesoramientoRoutes);
 app.use("/api/usuario-autorizado", usuarioAutorizadoRouter);
 
-// ------------------------ 404 HANDLER ------------------------
+// -------------------- 404 --------------------
 app.use((req, res) => {
   if (req.originalUrl.startsWith("/api/")) {
     return res.status(404).json({ error: "API: Ruta no encontrada" });
@@ -148,10 +138,9 @@ app.use((req, res) => {
   res.status(404).send("404 Not Found");
 });
 
-// ------------------------ ERROR GLOBAL ------------------------
+// -------------------- GLOBAL ERROR --------------------
 app.use((err, _req, res, _next) => {
   console.error("💥 Error no controlado:", err.message || err);
-
   res.status(err.status || 500).json({
     message: err.message || "Error interno del servidor",
   });
