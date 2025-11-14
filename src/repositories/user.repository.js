@@ -1,8 +1,6 @@
 // src/repositories/user.repository.js
 // ---------------------------------------------------------------------
 // Repositorio de Usuarios (Empresas / Clientes)
-// - Abstrae acceso a la colección "users"
-// - Usado por UsuarioAutorizadoService y otros módulos
 // ---------------------------------------------------------------------
 
 import User from "../models/user.model.js";
@@ -33,11 +31,19 @@ export const UserRepository = {
   },
 
   // -------------------------------------------------------------
+  // Buscar usuario por EMAIL (contacto.email)
+  // -------------------------------------------------------------
+  async findByEmail(email) {
+    if (!email) return null;
+    return await User.findOne({ "contacto.email": email });
+  },
+
+  // -------------------------------------------------------------
   // Listar todos los usuarios (solo empresas tipo "user")
   // -------------------------------------------------------------
   async listarTodos() {
     return await User.find({ role: "user" })
-      .select("_id empresa cuit contacto email role")
+      .select("_id empresa cuit contacto role activo createdAt")
       .sort({ empresa: 1 });
   },
 

@@ -9,31 +9,39 @@ const UserSchema = new mongoose.Schema(
       telefono: { type: String, default: "", trim: true },
     },
 
-    cuit: { type: String, required: true, unique: true, trim: true }, // CUIT único
-    empresa: { type: String, required: true, trim: true }, // Razón Social
+    cuit: { type: String, required: true, unique: true, trim: true },
 
-    // ⚙️ Contraseña opcional para creación automática o importación
-    password: { type: String, required: false, default: "" },
+    empresa: { type: String, required: true, trim: true },
 
+    // 🔐 Password opcional (para importación o creación automática)
+    password: { type: String, default: "" },
+
+    // Role siempre "user" para empresas
     role: { type: String, default: "user" },
+
     activo: { type: Boolean, default: true },
   },
   { timestamps: true }
 );
 
+//
 // -------------------------------------------------------------
-// 🔒 Hash de password solo si existe y fue modificado
+// 🔒 Hash del password SOLO si existe y fue modificado
 // -------------------------------------------------------------
+//
 UserSchema.pre("save", async function (next) {
-  if (!this.isModified("password") || !this.password) return next();
+  if (!this.password || !this.isModified("password")) return next();
   this.password = await hashPassword(this.password);
   next();
 });
 
+//
 // -------------------------------------------------------------
-// 🔑 Método para comparar contraseñas
+// 🔑 Método de comparación de contraseña
 // -------------------------------------------------------------
+//
 UserSchema.methods.comparePassword = function (plainPassword) {
+  if (!this.password) return false; // Empresa importada sin password
   return comparePassword(plainPassword, this.password);
 };
 

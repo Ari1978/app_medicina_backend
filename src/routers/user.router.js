@@ -1,28 +1,36 @@
+// src/routers/user.router.js
 import { Router } from "express";
 import { UserController } from "../controllers/user.controller.js";
 import { authUserRequired } from "../middlewares/auth.middleware.js";
 
 const router = Router();
 
-// ==================== AUTH USER (EMPRESA) ====================
+// =========================================================
+// 🔐 AUTH USER (EMPRESA)
+// =========================================================
 
+// 👉 Validar CUIT antes de permitir registro
 router.post("/check-cuit", UserController.checkCuit);
 
-// Registro (no requiere estar logueado)
+// 👉 Registro de nuevo usuario (empresa)
 router.post("/register", UserController.register);
 
-// Login
+// 👉 Login empresa (crea cookie asmel_token)
 router.post("/login", UserController.login);
 
-// Obtener usuario autenticado
+// 👉 Datos del usuario autenticado (desde cookie + JWT)
 router.get("/me", authUserRequired, UserController.me);
 
-// Logout
-router.post("/logout", authUserRequired, UserController.logout);
+// 👉 Logout SIEMPRE debe estar accesible,
+//    incluso si la cookie expiró → NO usar authUserRequired acá
+router.post("/logout", UserController.logout);
 
-// Ejemplo de ruta protegida
+// 👉 Ejemplo ruta protegida
 router.get("/turnos", authUserRequired, (req, res) => {
-  res.json({ message: "Turnos del usuario", userId: req.user._id });
+  res.json({
+    message: "Turnos del usuario autenticado",
+    userId: req.user._id,
+  });
 });
 
 export default router;
