@@ -28,7 +28,7 @@ const __dirname = path.dirname(__filename);
 const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:3000";
 const IS_PROD = process.env.NODE_ENV === "production";
 
-// Normalizamos origen (por si viene con / final)
+// Normaliza origen por si viene con / final
 const normalizeOrigin = (url) => url.replace(/\/$/, "");
 
 // ------------------------ TRUST PROXY ------------------------
@@ -38,13 +38,13 @@ app.set("trust proxy", 1);
 app.use(
   helmet({
     crossOriginResourcePolicy: { policy: "cross-origin" },
-    contentSecurityPolicy: false, // necesario por Sockets e imágenes externas
+    contentSecurityPolicy: false,
   })
 );
 
 app.use(compression());
 
-// ------------------------ LOGS ------------------------
+// ------------------------ LOGGING ------------------------
 app.use(morgan(IS_PROD ? "combined" : "dev"));
 
 // ------------------------ RATE LIMIT ------------------------
@@ -57,14 +57,13 @@ app.use(
   })
 );
 
-// ------------------------ CORS ------------------------
+// ------------------------ CORS (EXPRESS 5 SAFE) ------------------------
 app.use(
   cors({
     origin: (origin, callback) => {
-      if (!origin) return callback(null, true); // Postman / Safari
+      if (!origin) return callback(null, true);
 
       const clean = normalizeOrigin(origin);
-
       const allowed = [
         normalizeOrigin(FRONTEND_URL),
         "https://app-medicina-front.vercel.app",
@@ -79,20 +78,30 @@ app.use(
       return callback(new Error("CORS blocked"));
     },
     credentials: true,
-    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
   })
 );
 
-// Necesario para preflight OPTIONS
-app.options("*", cors());
+// ------------------------ PRE-FLIGHT FIX EXPRESS 5 ------------------------
+app.options(/.*/, (req, res) => {
+  res.setHeader("Access-Control-Allow-Origin", req.headers.origin || "");
+  res.setHeader("Access-Control-Allow-Credentials", "true");
+  res.setHeader(
+    "Access-Control-Allow-Methods",
+    "GET,POST,PUT,PATCH,DELETE,OPTIONS"
+  );
+  res.setHeader(
+    "Access-Control-Allow-Headers",
+    "Content-Type, Authorization"
+  );
+  res.sendStatus(200);
+});
 
 // ------------------------ BODY PARSERS ------------------------
 app.use(
   express.json({
     limit: "1mb",
     verify: (req, res, buf) => {
-      req.rawBody = buf.toString(); // Manejo de JSON inválido
+      req.rawBody = buf.toString();
     },
   })
 );
@@ -100,7 +109,7 @@ app.use(
 app.use(express.urlencoded({ extended: true, limit: "1mb" }));
 app.use(cookieParser());
 
-// Manejo de JSON malformado
+// Manejo de JSON inválido
 app.use((err, req, res, next) => {
   if (err instanceof SyntaxError && err.status === 400) {
     return res.status(400).json({ message: "JSON malformado" });
