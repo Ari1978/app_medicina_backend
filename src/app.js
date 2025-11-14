@@ -66,7 +66,7 @@ app.use(
       const clean = normalizeOrigin(origin);
       const allowed = [
         normalizeOrigin(FRONTEND_URL),
-        "https://app-medicina-front.vercel.app",
+        "https://app-medicina-front-1epbntq0w-ari1978s-projects.vercel.app",
         "http://localhost:3000",
       ];
 
