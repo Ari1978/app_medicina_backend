@@ -30,10 +30,6 @@ const IS_PROD = process.env.NODE_ENV === "production";
 
 // Normalizamos origen (por si viene con / final)
 const normalizeOrigin = (url) => url.replace(/\/$/, "");
-const ALLOWED_ORIGINS = [
-  normalizeOrigin(FRONTEND_URL),
-  normalizeOrigin("http://localhost:3000"),
-];
 
 // ------------------------ TRUST PROXY ------------------------
 app.set("trust proxy", 1);
@@ -42,7 +38,7 @@ app.set("trust proxy", 1);
 app.use(
   helmet({
     crossOriginResourcePolicy: { policy: "cross-origin" },
-    contentSecurityPolicy: false, // para Sockets e imágenes externas
+    contentSecurityPolicy: false, // necesario por Sockets e imágenes externas
   })
 );
 
@@ -65,14 +61,21 @@ app.use(
 app.use(
   cors({
     origin: (origin, callback) => {
-      // Safari / Postman / servidores internos → origin null
-      if (!origin) return callback(null, true);
+      if (!origin) return callback(null, true); // Postman / Safari
 
       const clean = normalizeOrigin(origin);
 
-      if (ALLOWED_ORIGINS.includes(clean)) return callback(null, true);
+      const allowed = [
+        normalizeOrigin(FRONTEND_URL),
+        "https://app-medicina-front.vercel.app",
+        "http://localhost:3000",
+      ];
 
-      console.warn("⛔ Origen bloqueado por CORS:", clean);
+      if (allowed.includes(clean)) {
+        return callback(null, true);
+      }
+
+      console.warn("⛔ CORS bloqueado:", clean);
       return callback(new Error("CORS blocked"));
     },
     credentials: true,
@@ -81,13 +84,15 @@ app.use(
   })
 );
 
+// Necesario para preflight OPTIONS
+app.options("*", cors());
+
 // ------------------------ BODY PARSERS ------------------------
 app.use(
   express.json({
     limit: "1mb",
     verify: (req, res, buf) => {
-      // Permite manejar JSON inválido
-      req.rawBody = buf.toString();
+      req.rawBody = buf.toString(); // Manejo de JSON inválido
     },
   })
 );
@@ -95,7 +100,7 @@ app.use(
 app.use(express.urlencoded({ extended: true, limit: "1mb" }));
 app.use(cookieParser());
 
-// Protección contra JSON inválido
+// Manejo de JSON malformado
 app.use((err, req, res, next) => {
   if (err instanceof SyntaxError && err.status === 400) {
     return res.status(400).json({ message: "JSON malformado" });
