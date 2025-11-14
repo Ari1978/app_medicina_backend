@@ -1,99 +1,164 @@
+// src/workers/carrito.worker.js
 import { Worker } from "bullmq";
-import { redisConnection } from "../config/redis.js";
+import { bullConnection } from "../config/redis.js";
+
 import { TurnoRepository } from "../repositories/turno.repository.js";
 import { CarritoRepository } from "../repositories/carrito.repository.js";
 import { publishTurnosEvent, publishCarritoEvent } from "../utils/eventBus.js";
 
+// ------------------------------------------------------------------
+// 🧠 Worker seguro (TLS, errores, reconexiones, logs detallados)
+// ------------------------------------------------------------------
 export const carritoWorker = new Worker(
   "carritoQueue",
   async (job) => {
-    const { action, userId, turnoId, data } = job.data;
+    try {
+      const { action, userId, turnoId, data } = job.data;
 
-    switch (action) {
-      case "AGREGAR_TURNO": {
-        const { actor, ...payload } = data;
+      if (!action) throw new Error("Falta acción en job");
 
-        // 1) Crear Turno provisional
-        const turno = await TurnoRepository.crear({
-          ...payload,
-          empresaId: userId,
-          estado: "provisional",
-          creadoPor: actor.autor,
-          creadoPorTipo: actor.autorTipo,
-          historialEstados: [],
-        });
+      switch (action) {
+        // ====================================================
+        // 🟡 AGREGAR TURNO (CREA PROVISIONAL)
+        // ====================================================
+        case "AGREGAR_TURNO": {
+          const { actor, ...payload } = data;
 
-        // 2) Agregar entrada al Carrito (linkeada al turno)
-        await CarritoRepository.agregar({
-          userId,
-          empresaId: payload.empresaId ?? userId,
-          turnoId: turno._id,
-          fecha: turno.fecha,
-          hora:  turno.hora,
-          empleado: turno.empleado,
-          contacto: turno.contacto,
-          puesto: turno.puesto,
-          examenes: turno.examenes,
-          creadoPor: actor.autor,
-          creadoPorTipo: actor.autorTipo,
-        });
+          // Validaciones críticas
+          const requeridos = [
+            "puesto",
+            "empleado.nombre",
+            "empleado.apellido",
+            "empleado.dni",
+            "contacto.nombre",
+            "contacto.celular",
+            "examenes",
+            "fecha",
+            "hora",
+          ];
 
-        // 3) Evento
-        await publishTurnosEvent("turno:provisional", {
-          turnoId: turno._id,
-          fecha: turno.fecha,
-          hora:  turno.hora,
-          userId,
-        });
+          for (const campo of requeridos) {
+            let valor = payload;
+            for (const parte of campo.split(".")) valor = valor?.[parte];
 
-        return turno;
-      }
+            if (!valor || valor === "")
+              throw new Error(`Falta el campo requerido: ${campo}`);
+          }
 
-      case "ELIMINAR_TURNO": {
-        // elimina el turno y su carrito asociado
-        await TurnoRepository.eliminar(turnoId);
-        await CarritoRepository.eliminarPorTurno(turnoId);
+          // Crear provisional
+          const turno = await TurnoRepository.create({
+            ...payload,
+            user: userId,
+            empresaId: userId,
+            estado: "provisional",
+            creadoPor: actor.autor,
+            creadoPorTipo: actor.autorTipo,
+            historialEstados: [],
+          });
 
-        await publishTurnosEvent("turno:eliminado", { turnoId, userId });
-        return true;
-      }
+          // Guardarlo en carrito
+          await CarritoRepository.agregar({
+            userId,
+            empresaId: userId,
+            turnoId: turno._id,
+            fecha: turno.fecha,
+            hora: turno.hora,
+            empleado: turno.empleado,
+            contacto: turno.contacto,
+            puesto: turno.puesto,
+            examenes: turno.examenes,
+            creadoPor: actor.autor,
+            creadoPorTipo: actor.autorTipo,
+          });
 
-      case "VACIAR_CARRITO": {
-        await CarritoRepository.vaciar(userId);
-        await publishCarritoEvent("carrito:vaciado", { userId });
-        return true;
-      }
-
-      case "CONFIRMAR_CARRITO": {
-        const items = await CarritoRepository.getCarrito(userId);
-
-        for (const c of items) {
-          await TurnoRepository.marcarConfirmado(c.turnoId);
-          await CarritoRepository.marcarConfirmadoPorTurno(c.turnoId);
-
-          await publishTurnosEvent("turno:confirmado", {
-            turnoId: c.turnoId,
-            fecha: c.fecha,
-            hora:  c.hora,
+          // Realtime event
+          await publishTurnosEvent("turno:provisional", {
+            turnoId: turno._id,
+            fecha: turno.fecha,
+            hora: turno.hora,
             userId,
           });
+
+          return turno;
         }
 
-        await CarritoRepository.vaciar(userId);
-        return true;
-      }
+        // ====================================================
+        // 🗑 ELIMINAR TURNO DEL CARRITO
+        // ====================================================
+        case "ELIMINAR_TURNO": {
+          await TurnoRepository.eliminar(turnoId);
+          await CarritoRepository.eliminarPorTurno(turnoId);
 
-      default:
-        throw new Error(`Acción no reconocida en worker: ${action}`);
+          await publishTurnosEvent("turno:eliminado", { turnoId, userId });
+
+          return true;
+        }
+
+        // ====================================================
+        // 🧹 VACIAR CARRITO
+        // ====================================================
+        case "VACIAR_CARRITO": {
+          await CarritoRepository.vaciar(userId);
+
+          await publishCarritoEvent("carrito:vaciado", { userId });
+
+          return true;
+        }
+
+        // ====================================================
+        // 🟢 CONFIRMAR TODO EL CARRITO
+        // ====================================================
+        case "CONFIRMAR_CARRITO": {
+          const items = await CarritoRepository.getCarrito(userId);
+
+          for (const item of items) {
+            await TurnoRepository.marcarConfirmado(item.turnoId);
+            await CarritoRepository.marcarConfirmadoPorTurno(item.turnoId);
+
+            await publishTurnosEvent("turno:confirmado", {
+              turnoId: item.turnoId,
+              fecha: item.fecha,
+              hora: item.hora,
+              userId,
+            });
+          }
+
+          await CarritoRepository.vaciar(userId);
+
+          return true;
+        }
+
+        // ====================================================
+        // ❌ ACCIÓN NO RECONOCIDA
+        // ====================================================
+        default:
+          throw new Error(`Acción desconocida: ${action}`);
+      }
+    } catch (err) {
+      console.error("❌ [Worker] Error procesando job:", err.message);
+      throw err;
     }
   },
-  { connection: redisConnection }
+  {
+    connection: bullConnection,
+    concurrency: 5, // para Render/Koyeb perfecto
+    autorun: true,
+  }
 );
 
-carritoWorker.on("completed", (job) => {
-  console.log(`✅ [Worker carrito] Job ${job.id} completado`);
-});
+// ------------------------------------------------------------------
+// LOGS
+// ------------------------------------------------------------------
+carritoWorker.on("completed", (job) =>
+  console.log(`✅ Worker completó job ${job.id}`)
+);
 
-carritoWorker.on("failed", (job, err) => {
-  console.error(`❌ [Worker carrito] Job ${job?.id} falló:`, err?.message);
-});
+carritoWorker.on("failed", (job, err) =>
+  console.error(`❌ Worker falló (${job?.id}):`, err?.message)
+);
+
+carritoWorker.on("error", (err) =>
+  console.error("❌ Error global del Worker:", err.message)
+);
+
+console.log("⚙️ [CarritoWorker] Worker iniciado con BullMQ");

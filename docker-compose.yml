@@ -1,0 +1,25 @@
+services:
+  backend:
+    build: .
+    container_name: asmel_backend
+    restart: always
+    ports:
+      - "4000:4000"
+    env_file:
+      - .env
+    depends_on:
+      - mongo
+    # 🔥 IMPORTANTE: NO LEVANTAMOS REDIS LOCAL
+    # Porque ya usás REDIS_URL con Upstash
+
+  mongo:
+    image: mongo:7
+    container_name: asmel_mongo
+    restart: always
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+
+volumes:
+  mongo_data:

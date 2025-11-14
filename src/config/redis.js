@@ -1,15 +1,52 @@
-import { Redis } from "ioredis";
+// src/config/redis.js
+import { createClient } from "redis";
 
-const REDIS_URL = process.env.REDIS_URL || "redis://localhost:6379";
+const REDIS_URL = process.env.REDIS_URL;
 
-// Para BullMQ  - objeto de conexión
-export const redisConnection = {
-  connection: REDIS_URL.startsWith("redis://")
-    ? { host: REDIS_URL.replace("redis://", "").split(":")[0], port: Number(REDIS_URL.split(":").at(-1)) }
-    : { host: "127.0.0.1", port: 6379 },
-};
+if (!REDIS_URL) {
+  throw new Error("❌ Falta REDIS_URL en .env");
+}
 
-// (Opcional) Clientes sueltos si los necesitás
-export const redisPub = new Redis(REDIS_URL);
-export const redisSub = new Redis(REDIS_URL);
+// Detecta si es Upstash (rediss) y activa TLS automáticamente
+const useTLS =
+  REDIS_URL.startsWith("rediss://") ||
+  REDIS_URL.includes("upstash.io");
 
+export const redisClient = createClient({
+  url: REDIS_URL,
+  socket: useTLS
+    ? {
+        tls: true,
+        rejectUnauthorized: false,
+      }
+    : {},
+});
+
+redisClient.on("error", (err) => {
+  console.error("❌ [Redis] Error:", err.message);
+});
+
+redisClient.on("connect", () => {
+  console.log("🔌 [Redis] Conectado a", useTLS ? "Upstash (TLS)" : "Redis local");
+});
+
+// Conexión (promesa)
+await redisClient.connect();
+
+// -------------------------------
+// 🔥 BullMQ Config universal
+// -------------------------------
+export const bullConnection = useTLS
+  ? {
+      url: REDIS_URL,
+      maxRetriesPerRequest: null,
+      enableReadyCheck: false,
+      tls: {
+        rejectUnauthorized: false,
+      },
+    }
+  : {
+      url: REDIS_URL,
+      maxRetriesPerRequest: null,
+      enableReadyCheck: false,
+    };

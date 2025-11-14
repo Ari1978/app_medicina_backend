@@ -1,11 +1,26 @@
+// src/queues/carrito.queue.js
 import { Queue } from "bullmq";
+import { bullConnection } from "../config/redis.js";
 
-const REDIS_URL = process.env.REDIS_URL || "redis://localhost:6379";
+let carritoQueue;
 
-const connection = { connection: { url: REDIS_URL } };
+try {
+  carritoQueue = new Queue("carritoQueue", {
+    connection: bullConnection,
+  });
 
-export const carritoQueue = new Queue("carritoQueue", connection);
+  console.log(
+    "🧺 [CarritoQueue] Cola inicializada con Redis:",
+    bullConnection.url
+  );
+} catch (err) {
+  console.error("❌ [CarritoQueue] No se pudo inicializar:", err.message);
+  throw err;
+}
 
-carritoQueue.on("error", (err) => console.error("❌ [CarritoQueue] Error:", err.message));
+// Manejo de errores
+carritoQueue.on("error", (err) => {
+  console.error("❌ [CarritoQueue] Error en tiempo de ejecución:", err.message);
+});
 
-console.log("🧺 [CarritoQueue] Cola inicializada");
+export { carritoQueue };

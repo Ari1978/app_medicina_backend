@@ -1,3 +1,4 @@
+// src/routers/turno.router.js
 import { Router } from "express";
 import { TurnoController } from "../controllers/turno.controller.js";
 import {
@@ -9,44 +10,93 @@ import {
 
 const router = Router();
 
-// ==================== USER (EMPRESA) ====================
-// Empresa solo puede manejar sus propios turnos
-router.get("/mis/confirmados", authUserRequired, TurnoController.listarMisConfirmados);
-router.get("/mis/provisionales", authUserRequired, TurnoController.listarProvisionales);
-router.post("/", authUserRequired, TurnoController.crearProvisional);
-router.put("/confirmar/:id", authUserRequired, TurnoController.confirmar);
-router.put("/:id", authUserRequired, TurnoController.actualizar);
-router.delete("/:id", authUserRequired, TurnoController.eliminar);
+/* ============================================================
+   🔵 SECCIÓN USER (EMPRESA)
+   Empresa solo maneja SUS turnos (empresaId = userId)
+============================================================ */
 
-// ==================== STAFF ====================
-// Staff puede ver y crear para distintas empresas, con permiso "turnos" o "examenes"
+// Listar turnos del propio usuario/empresa
 router.get(
-  "/",
+  "/mis/confirmados",
+  authUserRequired,
+  TurnoController.listarMisConfirmados
+);
+
+router.get(
+  "/mis/provisionales",
+  authUserRequired,
+  TurnoController.listarProvisionales
+);
+
+// Crear provisional (user/empresa)
+router.post("/", authUserRequired, TurnoController.crearProvisional);
+
+// Confirmar
+router.put(
+  "/confirmar/:id",
+  authUserRequired,
+  TurnoController.confirmar
+);
+
+// Actualizar provisional del usuario
+router.put(
+  "/:id",
+  authUserRequired,
+  TurnoController.actualizar
+);
+
+// Eliminar provisional del usuario
+router.delete(
+  "/:id",
+  authUserRequired,
+  TurnoController.eliminar
+);
+
+/* ============================================================
+   🔵 SECCIÓN STAFF
+   Staff puede ver TODAS las empresas, con permisos turnos/examenes
+============================================================ */
+
+// 👉 AgendaStaff: Lista TODOS los turnos confirmados del día
+// ⚠️ IMPORTANTE: esta ruta debe ir antes de rutas /:id
+router.get(
+  "/confirmados",
   authStaffRequired,
-  requirePermisos("turnos", "examenes"), // ✅ cualquiera de los dos
+  requirePermisos("turnos", "examenes"),
   TurnoController.listarTodosConfirmados
 );
 
+// Crear provisional en nombre de empresa/usuario
 router.post(
   "/empresa",
   authStaffRequired,
-  requirePermisos("turnos", "examenes"), // ✅ cualquiera de los dos
+  requirePermisos("turnos", "examenes"),
   TurnoController.crearProvisional
 );
 
-// ✅ Exportar turnos del día actual a Excel (Staff con permiso “turnos” o “examenes”)
+// Exportar Excel del día
 router.get(
   "/exportar",
   authStaffRequired,
-  requirePermisos("turnos", "examenes"), // ✅ cualquiera de los dos
+  requirePermisos("turnos", "examenes"),
   TurnoController.exportarTurnosExcel
 );
 
-// ==================== ADMIN ====================
-// Admin ve todos los confirmados del sistema sin restricciones
-router.get("/admin/all", authAdminRequired, TurnoController.listarTodosConfirmados);
+/* ============================================================
+   🔵 SECCIÓN ADMIN / SUPERADMIN
+   Admin ve TODOS los turnos confirmados del sistema
+============================================================ */
 
-// ✅ Exportar turnos del día actual a Excel (Admin)
-router.get("/admin/exportar", authAdminRequired, TurnoController.exportarTurnosExcel);
+router.get(
+  "/admin/all",
+  authAdminRequired,
+  TurnoController.listarTodosConfirmados
+);
+
+router.get(
+  "/admin/exportar",
+  authAdminRequired,
+  TurnoController.exportarTurnosExcel
+);
 
 export default router;
