@@ -1,5 +1,12 @@
+// src/controllers/staffUser.controller.js
 import { StaffService } from "../services/staffUser.service.js";
-import { clearAllAuthCookies, setAuthCookie, signToken, COOKIE_STAFF } from "../utils/jwt.js";
+import {
+  clearAllAuthCookies,
+  setAuthCookie,
+  COOKIE_STAFF,
+  generateTokenForStaff,
+} from "../utils/jwt.js";
+import { staffResponseDTO } from "../dto/staff.dto.js";
 
 export const StaffController = {
   async login(req, res) {
@@ -8,19 +15,13 @@ export const StaffController = {
       const staff = await StaffService.login(username?.trim(), password);
 
       clearAllAuthCookies(res);
-      const token = signToken({
-        _id: staff._id,
-        nombre: staff.nombre,
-        apellido: staff.apellido,
-        username: staff.username,
-        role: staff.role,
-        permisos: staff.permisos || [],
-      });
+
+      const token = generateTokenForStaff(staff);
       setAuthCookie(res, COOKIE_STAFF, token);
 
       return res.json({
         message: "OK",
-        user: { _id: staff._id, nombre: staff.nombre, apellido: staff.apellido, username: staff.username, role: staff.role, permisos: staff.permisos || [] },
+        user: staffResponseDTO(staff),
         token,
       });
     } catch (e) {
@@ -29,10 +30,10 @@ export const StaffController = {
   },
 
   async me(req, res) {
-    return res.json({ user: req.user });
+    return res.json({ user: staffResponseDTO(req.user) });
   },
 
-  async logout(req, res) {
+  async logout(_req, res) {
     clearAllAuthCookies(res);
     return res.json({ message: "Sesión cerrada" });
   },

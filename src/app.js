@@ -23,16 +23,43 @@ const app = express();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:3000";
+const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:5173";
 const IS_PROD = process.env.NODE_ENV === "production";
-
-// Normaliza origen
-const normalizeOrigin = (url) => url?.replace(/\/$/, "");
 
 // -------------------- TRUST PROXY --------------------
 app.set("trust proxy", 1);
 
-// -------------------- SECURITY --------------------
+// ====================================================================
+// ======================  C O R S   P R I M E R O  ===================
+// ====================================================================
+const ALLOWED_ORIGINS = [
+  "http://localhost:5173",
+  "http://127.0.0.1:5173",
+  "https://app-medicina-front.vercel.app",
+  FRONTEND_URL.replace(/\/$/, ""),
+];
+
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      if (!origin) return callback(null, true);
+      const clean = origin.replace(/\/$/, "");
+      if (ALLOWED_ORIGINS.includes(clean)) return callback(null, true);
+      console.warn("⛔ CORS bloqueado:", clean);
+      return callback(new Error("CORS blocked"));
+    },
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+  })
+);
+
+// Preflight OPTIONS
+app.options("*", cors());
+// ====================================================================
+
+
+// -------------------- SECURITY (DESPUÉS DE CORS) --------------------
 app.use(
   helmet({
     crossOriginResourcePolicy: { policy: "cross-origin" },
@@ -42,10 +69,10 @@ app.use(
 
 app.use(compression());
 
-// -------------------- LOGGING --------------------
+// -------------------- LOGGING (DESPUÉS DE CORS) --------------------
 app.use(morgan(IS_PROD ? "combined" : "dev"));
 
-// -------------------- RATE LIMIT --------------------
+// -------------------- RATE LIMIT (DESPUÉS DE CORS) --------------------
 app.use(
   rateLimit({
     windowMs: 15 * 60 * 1000,
@@ -54,44 +81,6 @@ app.use(
     legacyHeaders: false,
   })
 );
-
-// -------------------- CORS (CORRECTO PARA EXPRESS 5) --------------------
-app.use(
-  cors({
-    origin: (origin, callback) => {
-      if (!origin) return callback(null, true);
-
-      const clean = normalizeOrigin(origin);
-
-      // Permitimos TODOS los subdominios de vercel del proyecto
-      if (
-        clean.includes("vercel.app") &&
-        clean.includes("app-medicina-front")
-      ) {
-        return callback(null, true);
-      }
-
-      // Permitidos manuales
-      const allowed = [
-        normalizeOrigin(FRONTEND_URL),
-        "https://app-medicina-front.vercel.app",
-        "http://localhost:3000",
-      ];
-
-      if (allowed.includes(clean)) return callback(null, true);
-
-      console.warn("⛔ CORS bloqueado:", clean);
-      callback(new Error("CORS blocked"));
-    },
-
-    credentials: true,
-  })
-);
-
-// -------------------- EXPRESS 5 AUTOMÁTICO PARA OPTIONS --------------------
-// ❗ Ya NO agregamos un handler manual de OPTIONS.
-// cors() maneja preflight correctamente.
-// Esto evita el bug de Access-Control-Allow-Origin en blanco.
 
 // -------------------- BODY PARSERS --------------------
 app.use(
@@ -128,7 +117,7 @@ app.use("/api/carrito", carritoRouter);
 app.use("/api/salud-mental", saludMentalRouter);
 app.use("/api/marketing", marketingRouter);
 app.use("/api/asesoramiento", asesoramientoRoutes);
-app.use("/api/usuario-autorizado", usuarioAutorizadoRouter);
+app.use("/api/usuarios-autorizados", usuarioAutorizadoRouter);
 
 // -------------------- 404 --------------------
 app.use((req, res) => {

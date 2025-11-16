@@ -1,28 +1,26 @@
 // src/utils/jwt.js
 import jwt from "jsonwebtoken";
+import dotenv from "dotenv";
+dotenv.config();
 
-export const JWT_SECRET = process.env.JWT_SECRET || "mi_clave_super_secreta";
+export const JWT_SECRET =
+  process.env.JWT_SECRET || "mi_clave_secreta_super_segura";
 
-// Cookies
-export const COOKIE_USER  = "asmel_user_token";
+// Nombres de cookies (unificados)
+export const COOKIE_USER = "asmel_user_token";
 export const COOKIE_STAFF = "asmel_staff_token";
 export const COOKIE_ADMIN = "asmel_admin_token";
 
 const isProd = process.env.NODE_ENV === "production";
 
 /**
- * Genera un token JWT a partir de un payload arbitrario
- * @param {object} payload - Datos a codificar en el token
- * @param {string} expiresIn - Tiempo de expiración (opcional)
+ * Firma genérica de token
  */
-export const signToken = (payload, expiresIn = "7d") =>
+export const signToken = (payload, expiresIn = "3h") =>
   jwt.sign(payload, JWT_SECRET, { expiresIn });
 
 /**
- * Setea la cookie de autenticación
- * @param {Response} res - Response de Express
- * @param {string} cookieName - Nombre de la cookie
- * @param {string} token - JWT
+ * Setea cookie de autenticación
  */
 export const setAuthCookie = (res, cookieName, token) => {
   res.cookie(cookieName, token, {
@@ -36,7 +34,6 @@ export const setAuthCookie = (res, cookieName, token) => {
 
 /**
  * Limpia todas las cookies de autenticación
- * @param {Response} res - Response de Express
  */
 export const clearAllAuthCookies = (res) => {
   [COOKIE_USER, COOKIE_STAFF, COOKIE_ADMIN].forEach((c) =>
@@ -48,3 +45,53 @@ export const clearAllAuthCookies = (res) => {
     })
   );
 };
+
+/**
+ * Token para usuario empresa (User)
+ * OJO: tu modelo User no tiene nombre/apellido/email top-level,
+ * así que armamos el payload con empresa + contacto.
+ */
+export function generateTokenForUser(user) {
+  const payload = {
+    _id: user._id,
+    role: "user",
+    empresa: user.empresa,
+    cuit: user.cuit,
+    contacto: {
+      nombre: user.contacto?.nombre || "",
+      email: user.contacto?.email || "",
+      telefono: user.contacto?.telefono || "",
+    },
+  };
+  return signToken(payload);
+}
+
+/**
+ * Token para Staff
+ */
+export function generateTokenForStaff(staff) {
+  const payload = {
+    _id: staff._id,
+    role: "staff",
+    username: staff.username,
+    nombre: staff.nombre,
+    apellido: staff.apellido,
+    permisos: Array.isArray(staff.permisos) ? staff.permisos : [],
+  };
+  return signToken(payload);
+}
+
+/**
+ * Token para Admin o SuperAdmin
+ */
+export function generateTokenForAdmin(admin) {
+  const payload = {
+    _id: admin._id,
+    role: admin.superadmin ? "superadmin" : "admin",
+    nombre: admin.nombre,
+    apellido: admin.apellido,
+    username: admin.username,
+    superadmin: !!admin.superadmin,
+  };
+  return signToken(payload);
+}

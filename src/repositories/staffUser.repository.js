@@ -1,4 +1,4 @@
-import Staff from "../models/staffUser.model";
+import Staff from "../models/staffUser.model.js";
 
 export const StaffRepository = {
   async buscarPorUsername(username) {

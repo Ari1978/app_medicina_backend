@@ -6,9 +6,6 @@ import { TurnoRepository } from "../repositories/turno.repository.js";
 import { CarritoRepository } from "../repositories/carrito.repository.js";
 import { publishTurnosEvent, publishCarritoEvent } from "../utils/eventBus.js";
 
-// ------------------------------------------------------------------
-// 🧠 Worker seguro (TLS, errores, reconexiones, logs detallados)
-// ------------------------------------------------------------------
 export const carritoWorker = new Worker(
   "carritoQueue",
   async (job) => {
@@ -19,12 +16,11 @@ export const carritoWorker = new Worker(
 
       switch (action) {
         // ====================================================
-        // 🟡 AGREGAR TURNO (CREA PROVISIONAL)
+        // 🟡 AGREGAR TURNO (CREA PROVISIONAL EN TURNOS)
         // ====================================================
         case "AGREGAR_TURNO": {
           const { actor, ...payload } = data;
 
-          // Validaciones críticas
           const requeridos = [
             "puesto",
             "empleado.nombre",
@@ -40,38 +36,22 @@ export const carritoWorker = new Worker(
           for (const campo of requeridos) {
             let valor = payload;
             for (const parte of campo.split(".")) valor = valor?.[parte];
-
-            if (!valor || valor === "")
+            if (!valor || valor === "") {
               throw new Error(`Falta el campo requerido: ${campo}`);
+            }
           }
 
-          // Crear provisional
           const turno = await TurnoRepository.create({
             ...payload,
             user: userId,
             empresaId: userId,
             estado: "provisional",
-            creadoPor: actor.autor,
-            creadoPorTipo: actor.autorTipo,
-            historialEstados: [],
-          });
-
-          // Guardarlo en carrito
-          await CarritoRepository.agregar({
-            userId,
-            empresaId: userId,
-            turnoId: turno._id,
-            fecha: turno.fecha,
-            hora: turno.hora,
-            empleado: turno.empleado,
-            contacto: turno.contacto,
-            puesto: turno.puesto,
-            examenes: turno.examenes,
+            provisional: true,
+            confirmado: false,
             creadoPor: actor.autor,
             creadoPorTipo: actor.autorTipo,
           });
 
-          // Realtime event
           await publishTurnosEvent("turno:provisional", {
             turnoId: turno._id,
             fecha: turno.fecha,
@@ -83,11 +63,10 @@ export const carritoWorker = new Worker(
         }
 
         // ====================================================
-        // 🗑 ELIMINAR TURNO DEL CARRITO
+        // 🗑 ELIMINAR TURNO (BORRA TURNO PROVISIONAL)
         // ====================================================
         case "ELIMINAR_TURNO": {
           await TurnoRepository.eliminar(turnoId);
-          await CarritoRepository.eliminarPorTurno(turnoId);
 
           await publishTurnosEvent("turno:eliminado", { turnoId, userId });
 
@@ -95,10 +74,10 @@ export const carritoWorker = new Worker(
         }
 
         // ====================================================
-        // 🧹 VACIAR CARRITO
+        // 🧹 VACIAR CARRITO = borrar todos los provisionales del user
         // ====================================================
         case "VACIAR_CARRITO": {
-          await CarritoRepository.vaciar(userId);
+          await CarritoRepository.vaciarCarrito(userId);
 
           await publishCarritoEvent("carrito:vaciado", { userId });
 
@@ -109,21 +88,19 @@ export const carritoWorker = new Worker(
         // 🟢 CONFIRMAR TODO EL CARRITO
         // ====================================================
         case "CONFIRMAR_CARRITO": {
-          const items = await CarritoRepository.getCarrito(userId);
+          // Primero obtengo los turnos antes de confirmarlos para poder emitir eventos
+          const provisionales = await CarritoRepository.getCarrito(userId);
 
-          for (const item of items) {
-            await TurnoRepository.marcarConfirmado(item.turnoId);
-            await CarritoRepository.marcarConfirmadoPorTurno(item.turnoId);
+          await CarritoRepository.confirmarCarrito(userId);
 
+          for (const t of provisionales) {
             await publishTurnosEvent("turno:confirmado", {
-              turnoId: item.turnoId,
-              fecha: item.fecha,
-              hora: item.hora,
+              turnoId: t._id,
+              fecha: t.fecha,
+              hora: t.hora,
               userId,
             });
           }
-
-          await CarritoRepository.vaciar(userId);
 
           return true;
         }
@@ -141,14 +118,11 @@ export const carritoWorker = new Worker(
   },
   {
     connection: bullConnection,
-    concurrency: 5, // para Render/Koyeb perfecto
+    concurrency: 5,
     autorun: true,
   }
 );
 
-// ------------------------------------------------------------------
-// LOGS
-// ------------------------------------------------------------------
 carritoWorker.on("completed", (job) =>
   console.log(`✅ Worker completó job ${job.id}`)
 );

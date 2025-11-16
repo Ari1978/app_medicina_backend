@@ -1,4 +1,7 @@
 // src/server.js
+// force redeploy cors - 2025-11-16
+console.log("CORS REDEPLOY v1");
+
 import dotenv from "dotenv";
 dotenv.config();
 
@@ -28,7 +31,7 @@ if (!MONGO_URI) {
 const startServer = async () => {
   try {
     // -----------------------------------------
-    // 1️⃣ Conexión a MongoDB (segura y universal)
+    // 1️⃣ Conexión a MongoDB
     // -----------------------------------------
     await mongoose.connect(MONGO_URI, {
       maxPoolSize: 10,
@@ -55,7 +58,7 @@ const startServer = async () => {
       transports: ["websocket", "polling"],
     });
 
-    // Guardar instancia de io para usar desde Express
+    // Guardamos la instancia de socket en Express
     app.set("io", io);
 
     io.on("connection", (socket) => {
@@ -67,7 +70,7 @@ const startServer = async () => {
     });
 
     // -----------------------------------------
-    // 3️⃣ Cron interno → Limpieza de turnos
+    // 3️⃣ Limpieza automática de turnos
     // -----------------------------------------
     try {
       initTurnoCleaner(io);
@@ -85,14 +88,14 @@ const startServer = async () => {
     }
 
     // -----------------------------------------
-    // 5️⃣ Iniciar servidor
+    // 5️⃣ Iniciar servidor HTTP
     // -----------------------------------------
     server.listen(PORT, () => {
       console.log(`🚀 Servidor escuchando en puerto ${PORT}`);
     });
 
     // -----------------------------------------
-    // 6️⃣ Apagado elegante para Render/Koyeb
+    // 6️⃣ Shutdown para Render/Koyeb
     // -----------------------------------------
     const shutdown = async (sig) => {
       console.log(`🛑 Señal ${sig} recibida → cerrando servidor...`);

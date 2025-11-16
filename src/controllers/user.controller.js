@@ -3,14 +3,14 @@ import { UserService } from "../services/user.service.js";
 import {
   clearAllAuthCookies,
   setAuthCookie,
-  signToken,
   COOKIE_USER,
+  generateTokenForUser,
 } from "../utils/jwt.js";
 import { userResponseDTO } from "../dto/user.dto.js";
 import { UserRepository } from "../repositories/user.repository.js";
+import { LoginDTO } from "../dto/login.dto.js";
 
 export const UserController = {
-  // ------------------------ REGISTRO ------------------------
   async register(req, res) {
     try {
       const user = await UserService.register(req.body);
@@ -25,33 +25,15 @@ export const UserController = {
     }
   },
 
-  // ------------------------- LOGIN --------------------------
   async login(req, res) {
     try {
-      const cuit = req.body.cuit?.trim();
-      const password = req.body.password;
+      const { cuit, password } = new LoginDTO(req.body);
 
       const user = await UserService.login(cuit, password);
 
-      // Limpiar cookies previas (admin / staff / user)
       clearAllAuthCookies(res);
 
-      // Payload del JWT
-      const payload = {
-        _id: user._id,
-        nombre: user.nombre,
-        apellido: user.apellido,
-        cuit: user.cuit,
-        email: user.email,
-        role: "user",
-        permisos: [],
-        superadmin: false,
-      };
-
-      // Firmar token
-      const token = signToken(payload);
-
-      // Setear cookie segura
+      const token = generateTokenForUser(user);
       setAuthCookie(res, COOKIE_USER, token);
 
       return res.json({
@@ -65,14 +47,12 @@ export const UserController = {
     }
   },
 
-  // --------------------------- ME ---------------------------
   async me(req, res) {
     try {
       if (!req.user) {
         return res.status(401).json({ message: "No autenticado" });
       }
 
-      // Log útil en modo desarrollo
       console.log("🧾 [UserController.me] Datos enviados al front:", req.user);
 
       return res.json({
@@ -84,13 +64,11 @@ export const UserController = {
     }
   },
 
-  // ------------------------ LOGOUT --------------------------
-  async logout(req, res) {
+  async logout(_req, res) {
     clearAllAuthCookies(res);
     return res.json({ message: "👋 Sesión cerrada correctamente" });
   },
 
-  // -------------------- VALIDAR CUIT ------------------------
   async checkCuit(req, res) {
     try {
       const { cuit } = req.body;
@@ -109,7 +87,7 @@ export const UserController = {
       return res.json({
         cuit: empresa.cuit,
         nombre: empresa.empresa || empresa.nombre,
-        email: empresa.email,
+        email: empresa.contacto?.email || "",
       });
     } catch (err) {
       console.error("❌ Error checkCuit:", err);

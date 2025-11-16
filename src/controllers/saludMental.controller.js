@@ -1,4 +1,6 @@
+// src/controllers/saludMental.controller.js
 import { SaludMentalService } from "../services/saludMental.service.js";
+import { saludMentalResponseDTO } from "../dto/saludMental.dto.js";
 
 export const SaludMentalController = {
   async crear(req, res) {
@@ -6,9 +8,26 @@ export const SaludMentalController = {
       const user = req.user;
       if (!user) return res.status(401).json({ message: "No autenticado" });
 
-      const { nombreEmpresa, nombreContacto, celular, email, motivoConsulta, tipoServicio, notas } = req.body;
-      if (!nombreEmpresa || !nombreContacto || !celular || !email || !motivoConsulta || !tipoServicio) {
-        return res.status(400).json({ message: "Datos incompletos para crear solicitud" });
+      const {
+        nombreEmpresa,
+        nombreContacto,
+        celular,
+        email,
+        motivoConsulta,
+        tipoServicio,
+        notas,
+      } = req.body;
+      if (
+        !nombreEmpresa ||
+        !nombreContacto ||
+        !celular ||
+        !email ||
+        !motivoConsulta ||
+        !tipoServicio
+      ) {
+        return res
+          .status(400)
+          .json({ message: "Datos incompletos para crear solicitud" });
       }
 
       const payload = {
@@ -25,10 +44,15 @@ export const SaludMentalController = {
       };
 
       const solicitud = await SaludMentalService.crearSolicitud(payload);
-      return res.status(201).json({ message: "✅ Solicitud registrada correctamente", solicitud });
+      return res.status(201).json({
+        message: "✅ Solicitud registrada correctamente",
+        solicitud: saludMentalResponseDTO(solicitud),
+      });
     } catch (err) {
       console.error("❌ Error crear solicitud:", err);
-      return res.status(500).json({ message: err.message || "Error creando solicitud" });
+      return res
+        .status(500)
+        .json({ message: err.message || "Error creando solicitud" });
     }
   },
 
@@ -36,20 +60,24 @@ export const SaludMentalController = {
     try {
       const user = req.user;
       const solicitudes = await SaludMentalService.listarPorCliente(user._id);
-      return res.json(solicitudes);
+      return res.json(solicitudes.map(saludMentalResponseDTO));
     } catch (err) {
       console.error("❌ Error listarMisSolicitudes:", err);
-      return res.status(500).json({ message: "Error listando mis solicitudes" });
+      return res
+        .status(500)
+        .json({ message: "Error listando mis solicitudes" });
     }
   },
 
-  async listarTodas(req, res) {
+  async listarTodas(_req, res) {
     try {
       const solicitudes = await SaludMentalService.listarSolicitudes();
-      return res.json(solicitudes);
+      return res.json(solicitudes.map(saludMentalResponseDTO));
     } catch (err) {
       console.error("❌ Error listarTodas:", err);
-      return res.status(500).json({ message: "Error obteniendo solicitudes" });
+      return res
+        .status(500)
+        .json({ message: "Error obteniendo solicitudes" });
     }
   },
 
@@ -67,10 +95,15 @@ export const SaludMentalController = {
       };
 
       const solicitud = await SaludMentalService.setPresupuesto(id, payload);
-      return res.json({ message: "✅ Presupuesto guardado", solicitud });
+      return res.json({
+        message: "✅ Presupuesto guardado",
+        solicitud: saludMentalResponseDTO(solicitud),
+      });
     } catch (err) {
       console.error("❌ Error setPresupuesto:", err);
-      return res.status(500).json({ message: err.message || "Error guardando presupuesto" });
+      return res
+        .status(500)
+        .json({ message: err.message || "Error guardando presupuesto" });
     }
   },
 
@@ -88,10 +121,15 @@ export const SaludMentalController = {
       };
 
       const solicitud = await SaludMentalService.cambiarEstado(id, payload);
-      return res.json({ message: "✅ Estado actualizado", solicitud });
+      return res.json({
+        message: "✅ Estado actualizado",
+        solicitud: saludMentalResponseDTO(solicitud),
+      });
     } catch (err) {
       console.error("❌ Error cambiarEstado:", err);
-      return res.status(500).json({ message: err.message || "Error actualizando estado" });
+      return res
+        .status(500)
+        .json({ message: err.message || "Error actualizando estado" });
     }
   },
 
@@ -102,10 +140,15 @@ export const SaludMentalController = {
 
       const payload = { autor: user._id, autorTipo: user.role };
       const solicitud = await SaludMentalService.notificarTurnos(id, payload);
-      return res.json({ message: "📨 Notificación enviada al área de turnos", solicitud });
+      return res.json({
+        message: "📨 Notificación enviada al área de turnos",
+        solicitud: saludMentalResponseDTO(solicitud),
+      });
     } catch (err) {
       console.error("❌ Error notificarTurnos:", err);
-      return res.status(500).json({ message: err.message || "Error notificando a turnos" });
+      return res
+        .status(500)
+        .json({ message: err.message || "Error notificando a turnos" });
     }
   },
 };

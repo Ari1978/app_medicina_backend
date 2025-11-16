@@ -3,12 +3,9 @@ import { TurnoService } from "../services/turno.service.js";
 import XLSX from "xlsx";
 import fs from "fs";
 import path from "path";
+import { TurnoDTO } from "../dto/turno.dto.js";
 
 export const TurnoController = {
-
-  /* =====================================================
-     🔵 LISTAR TODOS LOS CONFIRMADOS (STAFF / ADMIN)
-  ===================================================== */
   async listarTodosConfirmados(req, res) {
     try {
       const { fecha } = req.query;
@@ -18,16 +15,15 @@ export const TurnoController = {
         : { estado: "confirmado" };
 
       const turnos = await TurnoService.listarPorFiltro(filter);
-      return res.json(turnos);
+      return res.json(turnos.map((t) => new TurnoDTO(t)));
     } catch (err) {
       console.error("❌ listarTodosConfirmados:", err);
-      return res.status(500).json({ message: "Error listando turnos confirmados" });
+      return res
+        .status(500)
+        .json({ message: "Error listando turnos confirmados" });
     }
   },
 
-  /* =====================================================
-     🔵 MIS TURNOS CONFIRMADOS (EMPRESA)
-  ===================================================== */
   async listarMisConfirmados(req, res) {
     try {
       const userId = req.user._id.toString();
@@ -38,16 +34,15 @@ export const TurnoController = {
         : { empresaId: userId, estado: "confirmado" };
 
       const turnos = await TurnoService.listarPorFiltro(filter);
-      return res.json(turnos);
+      return res.json(turnos.map((t) => new TurnoDTO(t)));
     } catch (err) {
       console.error("❌ listarMisConfirmados:", err);
-      return res.status(500).json({ message: "Error listando mis turnos confirmados" });
+      return res
+        .status(500)
+        .json({ message: "Error listando mis turnos confirmados" });
     }
   },
 
-  /* =====================================================
-     🔵 LISTAR PROVISIONALES (EMPRESA)
-  ===================================================== */
   async listarProvisionales(req, res) {
     try {
       const userId = req.user._id.toString();
@@ -58,16 +53,15 @@ export const TurnoController = {
         : { empresaId: userId, estado: "provisional" };
 
       const turnos = await TurnoService.listarPorFiltro(filter);
-      return res.json(turnos);
+      return res.json(turnos.map((t) => new TurnoDTO(t)));
     } catch (err) {
       console.error("❌ listarProvisionales:", err);
-      return res.status(500).json({ message: "Error listando turnos provisionales" });
+      return res
+        .status(500)
+        .json({ message: "Error listando turnos provisionales" });
     }
   },
 
-  /* =====================================================
-     🔵 CREAR PROVISIONAL
-  ===================================================== */
   async crearProvisional(req, res) {
     try {
       const actor = req.user;
@@ -77,16 +71,15 @@ export const TurnoController = {
         autorTipo: actor.role,
       });
 
-      return res.status(201).json(turno);
+      return res.status(201).json(new TurnoDTO(turno));
     } catch (err) {
       console.error("❌ crearProvisional:", err);
-      return res.status(500).json({ message: err.message || "Error al crear turno provisional" });
+      return res
+        .status(500)
+        .json({ message: err.message || "Error al crear turno provisional" });
     }
   },
 
-  /* =====================================================
-     🔵 CONFIRMAR TURNO
-  ===================================================== */
   async confirmar(req, res) {
     try {
       const actor = req.user;
@@ -97,16 +90,15 @@ export const TurnoController = {
         autorTipo: actor.role,
       });
 
-      return res.json(turno);
+      return res.json(new TurnoDTO(turno));
     } catch (err) {
       console.error("❌ confirmar:", err);
-      return res.status(500).json({ message: err.message || "Error al confirmar turno" });
+      return res
+        .status(500)
+        .json({ message: err.message || "Error al confirmar turno" });
     }
   },
 
-  /* =====================================================
-     🔵 ACTUALIZAR PROVISIONAL
-  ===================================================== */
   async actualizar(req, res) {
     try {
       const actor = req.user;
@@ -117,16 +109,15 @@ export const TurnoController = {
         { autor: actor._id, autorTipo: actor.role }
       );
 
-      return res.json(turno);
+      return res.json(new TurnoDTO(turno));
     } catch (err) {
       console.error("❌ actualizar:", err);
-      return res.status(500).json({ message: err.message || "Error al actualizar turno" });
+      return res
+        .status(500)
+        .json({ message: err.message || "Error al actualizar turno" });
     }
   },
 
-  /* =====================================================
-     🔵 ELIMINAR
-  ===================================================== */
   async eliminar(req, res) {
     try {
       const actor = req.user;
@@ -139,13 +130,13 @@ export const TurnoController = {
       return res.json({ message: "🗑️ Turno eliminado", ...result });
     } catch (err) {
       console.error("❌ eliminar:", err);
-      return res.status(500).json({ message: err.message || "Error al eliminar turno" });
+      return res
+        .status(500)
+        .json({ message: err.message || "Error al eliminar turno" });
     }
   },
 
-  /* =====================================================
-     🔵 EXPORTAR EXCEL (STAFF / ADMIN)
-  ===================================================== */
+  // exportarTurnosExcel queda igual (usa el modelo crudo para armar el XLSX)
   async exportarTurnosExcel(req, res) {
     try {
       const hoy = new Date();
@@ -157,7 +148,9 @@ export const TurnoController = {
       });
 
       if (!turnos.length) {
-        return res.status(404).json({ message: "No hay turnos confirmados hoy" });
+        return res
+          .status(404)
+          .json({ message: "No hay turnos confirmados hoy" });
       }
 
       const motivosMap = {
@@ -192,7 +185,9 @@ export const TurnoController = {
 
         return {
           "N°": i + 1,
-          "Apellido y Nombre": `${t.empleado?.apellido || ""} ${t.empleado?.nombre || ""}`,
+          "Apellido y Nombre": `${t.empleado?.apellido || ""} ${
+            t.empleado?.nombre || ""
+          }`,
           DNI: t.empleado?.dni || "",
           Motivo: motivoDesc,
           Tipo: tipo,
@@ -228,10 +223,13 @@ export const TurnoController = {
         if (err) console.error("❌ Error al enviar archivo:", err);
         fs.unlink(filePath, () => {});
       });
-
     } catch (err) {
       console.error("❌ exportarTurnosExcel:", err);
-      return res.status(500).json({ message: "Error exportando turnos", error: err.message });
+      return res.status(500).json({
+        message: "Error exportando turnos",
+        error: err.message,
+      });
     }
   },
 };
+

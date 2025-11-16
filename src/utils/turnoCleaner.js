@@ -1,7 +1,6 @@
 // src/utils/turnoCleaner.js
 import cron from "node-cron";
 import Turno from "../models/turno.model.js";
-import { CarritoRepository } from "../repositories/carrito.repository.js";
 import { publishTurnosEvent } from "./eventBus.js";
 
 // 🧹 Limpia turnos provisionales mayores a 10 minutos
@@ -25,11 +24,8 @@ export const initTurnoCleaner = () => {
 
       const ids = turnos.map((t) => t._id);
 
-      // Borrar turnos
+      // Borrar turnos directamente
       const res = await Turno.deleteMany({ _id: { $in: ids } });
-
-      // Limpiar carrito asociado
-      await CarritoRepository.eliminarMuchos(ids);
 
       console.log(`🧽 TurnoCleaner: ${res.deletedCount} turnos eliminados`);
 
@@ -47,4 +43,3 @@ export const initTurnoCleaner = () => {
     }
   });
 };
-

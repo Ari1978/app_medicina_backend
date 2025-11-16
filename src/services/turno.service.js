@@ -10,26 +10,30 @@ const normalizarTipo = (role) => {
 
 export const TurnoService = {
   /* =====================================================
-     🔹 LISTAR POR FILTRO (usado por el controller)
+     🔹 LISTAR POR FILTRO
   ===================================================== */
   async listarPorFiltro(filtro) {
     return await TurnoRepository.findByFilter(filtro);
   },
 
   /* =====================================================
-     🔹 CREAR (provisional por defecto)
-       actor = { autor: ObjectId, autorTipo: "user"|"staff"|"admin" }
+     🔹 CREAR TURNO PROVISIONAL
   ===================================================== */
   async crearTurno(data, actor) {
     if (!data) throw new Error("Datos inválidos");
 
-    const { fecha, hora, empleado, contacto, puesto, examenes = [], motivo } = data;
+    const { fecha, hora, empleado, contacto, puesto, examenes = [], motivo } =
+      data;
 
     if (!fecha || !hora) throw new Error("Falta fecha u hora");
     if (!empleado?.dni || !empleado?.nombre || !empleado?.apellido)
-      throw new Error("Faltan datos del empleado (nombre, apellido, dni)");
+      throw new Error(
+        "Faltan datos del empleado (nombre, apellido, dni)"
+      );
     if (!contacto?.nombre || !contacto?.celular)
-      throw new Error("Faltan datos de contacto (nombre, celular)");
+      throw new Error(
+        "Faltan datos de contacto (nombre, celular)"
+      );
     if (!puesto) throw new Error("Falta el puesto");
 
     // empresaId:
@@ -44,7 +48,7 @@ export const TurnoService = {
       contacto,
       puesto,
       examenes,
-      motivo: motivo || "57", // Pendiente por defecto
+      motivo: motivo || "57", // Pendiente
 
       user: empresaId,
       empresaId,
@@ -71,6 +75,9 @@ export const TurnoService = {
     turno.provisional = false;
     turno.confirmado = true;
 
+    // (si querés dejar trazabilidad de quién lo confirmó,
+    // podés agregar campos extra acá en el modelo)
+
     return await turno.save();
   },
 
@@ -82,6 +89,13 @@ export const TurnoService = {
     if (!turno) throw new Error("Turno no encontrado");
 
     Object.assign(turno, data);
+
+    // Si desde el front mandan estado "confirmado"
+    if (data.estado === "confirmado") {
+      turno.provisional = false;
+      turno.confirmado = true;
+    }
+
     return await turno.save();
   },
 
@@ -97,7 +111,7 @@ export const TurnoService = {
   },
 
   /* =====================================================
-     🔹 OTROS LISTADOS (por si los usás en otros lados)
+     🔹 LISTADOS
   ===================================================== */
   async listarTurnosConfirmadosPorUser(userId) {
     return await TurnoRepository.findConfirmadosByUser(userId);
@@ -105,10 +119,6 @@ export const TurnoService = {
 
   async listarTurnosProvisionalesPorUser(userId) {
     return await TurnoRepository.findProvisionalesByUser(userId);
-  },
-
-  async listarTurnosPorUsuarioYFecha(userId, fecha) {
-    return await TurnoRepository.findProvisionalesByUserAndDate(userId, fecha);
   },
 
   async confirmarTurnosUsuario(userId) {
