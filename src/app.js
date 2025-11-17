@@ -60,7 +60,7 @@ app.use(
 );
 
 // Preflight OPTIONS
-app.options("*", cors());
+app.options("/*", cors());
 
 
 
