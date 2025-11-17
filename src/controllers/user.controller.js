@@ -11,20 +11,55 @@ import { UserRepository } from "../repositories/user.repository.js";
 import { LoginDTO } from "../dto/login.dto.js";
 
 export const UserController = {
+
+  // ============================================================
+  // 🚀 REGISTRO EMPRESA VALIDADO POR CUIT
+  // ============================================================
   async register(req, res) {
     try {
-      const user = await UserService.register(req.body);
+      const { cuit, email, password, contacto } = req.body;
+
+      // 1) Validar CUIT
+      if (!cuit?.trim()) {
+        return res.status(400).json({ message: "CUIT requerido" });
+      }
+
+      // 2) Buscar CUIT en la DB (creado por SuperAdmin)
+      const empresaBase = await UserRepository.findByCuit(cuit.trim());
+      if (!empresaBase) {
+        return res.status(403).json({
+          message: "Empresa no autorizada. Contactar a ASMEL.",
+        });
+      }
+
+      // 3) Ver si YA se registró
+      if (empresaBase.password) {
+        return res.status(400).json({
+          message: "Esta empresa ya completó su registro.",
+        });
+      }
+
+      // 4) Actualizar datos del registro
+      const user = await UserService.completarRegistro(empresaBase._id, {
+        email: email?.trim() || empresaBase.contacto?.email || "",
+        password,
+        contacto,
+      });
 
       return res.status(201).json({
-        message: "✅ Registro exitoso",
+        message: "Registro completado correctamente",
         user: userResponseDTO(user),
       });
+
     } catch (e) {
       console.error("❌ Error en register:", e.message);
       return res.status(400).json({ message: e.message });
     }
   },
 
+  // ============================================================
+  // LOGIN
+  // ============================================================
   async login(req, res) {
     try {
       const { cuit, password } = new LoginDTO(req.body);
@@ -47,13 +82,14 @@ export const UserController = {
     }
   },
 
+  // ============================================================
+  // /ME
+  // ============================================================
   async me(req, res) {
     try {
       if (!req.user) {
         return res.status(401).json({ message: "No autenticado" });
       }
-
-      console.log("🧾 [UserController.me] Datos enviados al front:", req.user);
 
       return res.json({
         user: userResponseDTO(req.user),
@@ -69,6 +105,9 @@ export const UserController = {
     return res.json({ message: "👋 Sesión cerrada correctamente" });
   },
 
+  // ============================================================
+  // VALIDAR CUIT ANTES DEL REGISTRO
+  // ============================================================
   async checkCuit(req, res) {
     try {
       const { cuit } = req.body;

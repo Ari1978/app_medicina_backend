@@ -89,4 +89,19 @@ export const UserService = {
 
     return user;
   },
+
+  // Completar registro de empresa ya autorizada por SuperAdmin
+async completarRegistro(id, data) {
+  const user = await User.findById(id);
+  if (!user) throw new Error("Empresa no encontrada");
+
+  user.email = data.email;
+  user.password = data.password; // se hashea en pre-save
+  user.contacto = data.contacto || user.contacto;
+
+  await user.save();
+  return user;
+}
+
+
 };

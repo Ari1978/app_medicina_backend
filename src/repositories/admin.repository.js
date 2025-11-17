@@ -3,27 +3,56 @@ import Staff from "../models/staffUser.model.js";
 import User from "../models/user.model.js";
 
 export const AdminRepository = {
-  // Buscar admin o staff por email o CUIT
-  async buscarPorEmailOCuit(email, cuit) {
-    const admin = await Admin.findOne({ $or: [{ email }, { username: email }, { username: cuit }] });
-    if (admin) return admin;
-    return await Staff.findOne({ $or: [{ username: email }, { username: cuit }] });
+  // Buscar admin o staff para login
+  async buscarPorUsername(username) {
+    const admin = await Admin.findOne({ username, activo: true });
+    if (admin) return { ...admin._doc, role: admin.superadmin ? "superadmin" : "admin" };
+
+    const staff = await Staff.findOne({ username, activo: true });
+    if (staff) return { ...staff._doc, role: "staff" };
+
+    return null;
   },
 
-  // Crear Admin o Staff
-  async crear(data, tipo = "admin") {
-    return tipo === "staff" ? Staff.create(data) : Admin.create(data);
+  // Crear Admin
+  async crearAdmin(data) {
+    return await Admin.create(data);
   },
 
-  // Listar todos los Admins y Staff
+  // Crear Staff
+  async crearStaff(data) {
+    return await Staff.create(data);
+  },
+
+  // Listar Admins + Staff
   async listarAdminsYStaff() {
     const admins = await Admin.find({}, "-password -__v").lean();
     const staff = await Staff.find({}, "-password -__v").lean();
     return [...admins, ...staff].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
   },
 
-  // Buscar usuario normal por CUIT
-  async buscarUsuarioPorCuit(cuit) {
-    return await User.findOne({ cuit }).select("-password -__v").lean();
+  // Usuarios normales
+  async listarUsuarios() {
+    return await User.find({}, "-password -__v").lean();
+  },
+
+  async countByRoleUser() {
+    return User.countDocuments({ role: "user" });
+  },
+
+  async countStaff() {
+    return Staff.countDocuments();
+  },
+
+  async countAdmins() {
+    return Admin.countDocuments();
+  },
+
+  async importarUsuario(data) {
+    return await User.create(data);
+  },
+
+  async existsByCuit(cuit) {
+    return await User.findOne({ cuit });
   },
 };

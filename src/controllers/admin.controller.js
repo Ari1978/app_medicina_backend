@@ -1,4 +1,4 @@
-// src/controllers/admin.controller.js
+/// src/controllers/admin.controller.js
 import { AdminService } from "../services/admin.service.js";
 import {
   clearAllAuthCookies,
@@ -12,14 +12,13 @@ import { staffResponseDTO } from "../dto/staff.dto.js";
 import { userResponseDTO } from "../dto/user.dto.js";
 
 export const AdminController = {
+
   // ---------------- LOGIN ADMIN / SUPERADMIN ----------------
   async login(req, res) {
     try {
       const { username, password } = req.body;
       if (!username || !password)
-        return res
-          .status(400)
-          .json({ message: "Usuario y contraseña son requeridos" });
+        return res.status(400).json({ message: "Usuario y contraseña requeridos" });
 
       const admin = await AdminService.login(username.trim(), password);
 
@@ -29,14 +28,12 @@ export const AdminController = {
       setAuthCookie(res, COOKIE_ADMIN, token);
 
       return res.json({
-        message: "✅ Login exitoso",
+        message: "Login exitoso",
         user: adminResponseDTO(admin),
         token,
       });
     } catch (e) {
-      return res
-        .status(401)
-        .json({ message: e.message || "Credenciales incorrectas" });
+      return res.status(401).json({ message: e.message });
     }
   },
 
@@ -44,27 +41,20 @@ export const AdminController = {
   async crearAdmin(req, res) {
     try {
       if (!req.user?.superadmin)
-        return res
-          .status(403)
-          .json({ message: "Solo el SuperAdmin puede crear Admins" });
+        return res.status(403).json({ message: "Solo SuperAdmin" });
 
       const { username, password, nombre, apellido, superadmin } = req.body;
+
       if (!username || !password || !nombre || !apellido)
         return res.status(400).json({ message: "Faltan campos" });
 
       const nuevo = await AdminService.crearAdmin(
-        {
-          username: username.trim(),
-          password,
-          nombre: nombre.trim(),
-          apellido: apellido.trim(),
-          superadmin: !!superadmin,
-        },
+        { username, password, nombre, apellido, superadmin },
         req.user
       );
 
       return res.status(201).json({
-        message: "✅ Admin creado correctamente",
+        message: "Admin creado",
         admin: adminResponseDTO(nuevo),
       });
     } catch (e) {
@@ -72,35 +62,65 @@ export const AdminController = {
     }
   },
 
-  // ---------------- CREAR STAFF (Admin o SuperAdmin) ----------------
+  // ---------------- CREAR STAFF ----------------
   async crearStaff(req, res) {
     try {
       if (!req.user || !["admin", "superadmin"].includes(req.user.role))
-        return res
-          .status(403)
-          .json({ message: "Solo un Admin o SuperAdmin puede crear Staff" });
+        return res.status(403).json({ message: "Solo Admin/SuperAdmin" });
 
       const { username, password, nombre, apellido, permisos } = req.body;
+
       if (!username || !password || !nombre || !apellido)
         return res.status(400).json({ message: "Faltan campos" });
 
       const nuevo = await AdminService.crearStaff(
-        {
-          username: username.trim(),
-          password,
-          nombre: nombre.trim(),
-          apellido: apellido.trim(),
-          permisos: Array.isArray(permisos) ? permisos : [],
-        },
+        { username, password, nombre, apellido, permisos },
         req.user
       );
 
       return res.status(201).json({
-        message: "✅ Staff creado correctamente",
+        message: "Staff creado",
         staff: staffResponseDTO(nuevo),
       });
     } catch (e) {
       return res.status(403).json({ message: e.message });
+    }
+  },
+
+  // ---------------- CREAR EMPRESA ----------------
+  async crearEmpresa(req, res) {
+    try {
+      console.log("BODY RECIBIDO EN CREAR-EMPRESA:", req.body);
+      if (!req.user?.superadmin)
+        return res.status(403).json({ message: "Solo SuperAdmin" });
+
+      const { empresa, cuit, contactoNombre, contactoEmail, password } = req.body;
+
+      if (
+  !empresa?.trim() ||
+  !cuit?.trim() ||
+  !contactoNombre?.trim() ||
+  !contactoEmail?.trim() ||
+  !password?.trim()
+) {
+  return res.status(400).json({ message: "Faltan campos obligatorios" });
+}
+
+
+      const nueva = await AdminService.crearEmpresa({
+        empresa,
+        cuit,
+        contactoNombre,
+        contactoEmail,
+        password,
+      });
+
+      return res.status(201).json({
+        message: "Empresa creada",
+        empresa: nueva,
+      });
+    } catch (e) {
+      return res.status(400).json({ message: e.message });
     }
   },
 
@@ -121,7 +141,7 @@ export const AdminController = {
     }
   },
 
-  // ---------------- BUSCAR USUARIO POR CUIT ----------------
+  // ---------------- BUSCAR POR CUIT ----------------
   async buscarUsuario(req, res) {
     try {
       const { cuit } = req.params;
@@ -136,14 +156,83 @@ export const AdminController = {
     }
   },
 
-  // ---------------- PERFIL DEL ADMIN ----------------
   async me(req, res) {
     return res.json({ user: adminResponseDTO(req.user) });
   },
 
-  // ---------------- LOGOUT ----------------
   async logout(_req, res) {
     clearAllAuthCookies(res);
     return res.json({ message: "Sesión cerrada" });
   },
+
+    // ============================================================
+  // 🔥 SUPERADMIN: RESUMEN DEL SISTEMA
+  // ============================================================
+  async resumenSuperadmin(_req, res) {
+    try {
+      const empresas = await UserRepository.countByRole("user");
+      const staff = await UserRepository.countByRole("staff");
+      const admins = await UserRepository.countByRole("admin");
+
+      return res.json({ empresas, staff, admins });
+    } catch (e) {
+      return res.status(500).json({ message: e.message });
+    }
+  },
+
+  // ============================================================
+  // 🔥 SUPERADMIN: LISTAR TODOS LOS USUARIOS DEL SISTEMA
+  // ============================================================
+  async listarUsuariosSistema(_req, res) {
+    try {
+      const lista = await UserRepository.findAll();
+      return res.json(lista);
+    } catch (e) {
+      return res.status(500).json({ message: e.message });
+    }
+  },
+
+  // ============================================================
+  // 🔥 SUPERADMIN: IMPORTAR USUARIOS DESDE EXCEL
+  // ============================================================
+  async importarUsuarios(req, res) {
+    try {
+      const { usuarios } = req.body;
+
+      if (!Array.isArray(usuarios)) {
+        return res.status(400).json({ message: "Formato inválido" });
+      }
+
+      let creados = 0;
+      let existentes = 0;
+
+      for (const u of usuarios) {
+        if (!u.cuit || !u.empresa) {
+          existentes++;
+          continue;
+        }
+
+        const existe = await UserRepository.findByCuit(u.cuit);
+        if (existe) {
+          existentes++;
+          continue;
+        }
+
+        await UserRepository.crear({
+          empresa: u.empresa,
+          cuit: u.cuit,
+          contacto: { nombre: u.empresa, email: "" },
+          password: "temporal123",
+        });
+
+        creados++;
+      }
+
+      return res.json({ creados, existentes });
+    } catch (e) {
+      return res.status(500).json({ message: e.message });
+    }
+  },
+
+
 };

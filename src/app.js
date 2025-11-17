@@ -19,6 +19,8 @@ import staffUserRouter from "./routers/staffUser.router.js";
 import asesoramientoRoutes from "./routers/asesoramiento.router.js";
 import usuarioAutorizadoRouter from "./routers/usuarioAutorizado.router.js";
 
+
+
 const app = express();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -34,8 +36,11 @@ app.set("trust proxy", 1);
 // ====================================================================
 const ALLOWED_ORIGINS = [
   "http://localhost:5173",
-  "http://127.0.0.1:5173",
-  "https://app-medicina-front.vercel.app",
+"http://127.0.0.1:5173",
+"http://localhost:3000",
+"http://127.0.0.1:3000",
+"http://localhost:4000",      // necesario para modo local
+"https://app-medicina-front.vercel.app",
   FRONTEND_URL.replace(/\/$/, ""),
 ];
 
@@ -56,6 +61,9 @@ app.use(
 
 // Preflight OPTIONS
 app.options("*", cors());
+
+
+
 // ====================================================================
 
 
@@ -118,6 +126,9 @@ app.use("/api/salud-mental", saludMentalRouter);
 app.use("/api/marketing", marketingRouter);
 app.use("/api/asesoramiento", asesoramientoRoutes);
 app.use("/api/usuarios-autorizados", usuarioAutorizadoRouter);
+
+
+
 
 // -------------------- 404 --------------------
 app.use((req, res) => {
