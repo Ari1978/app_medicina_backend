@@ -1,4 +1,4 @@
-/// src/controllers/admin.controller.js
+// src/controllers/admin.controller.js
 import { AdminService } from "../services/admin.service.js";
 import {
   clearAllAuthCookies,
@@ -6,6 +6,7 @@ import {
   COOKIE_ADMIN,
   generateTokenForAdmin,
 } from "../utils/jwt.js";
+
 import { UserRepository } from "../repositories/user.repository.js";
 import { adminResponseDTO } from "../dto/admin.dto.js";
 import { staffResponseDTO } from "../dto/staff.dto.js";
@@ -13,7 +14,9 @@ import { userResponseDTO } from "../dto/user.dto.js";
 
 export const AdminController = {
 
-  // ---------------- LOGIN ADMIN / SUPERADMIN ----------------
+  /* =========================================================
+     🔐 LOGIN ADMIN / SUPERADMIN
+  ========================================================= */
   async login(req, res) {
     try {
       const { username, password } = req.body;
@@ -37,7 +40,9 @@ export const AdminController = {
     }
   },
 
-  // ---------------- CREAR ADMIN (solo SuperAdmin) ----------------
+  /* =========================================================
+     🛠️ CREAR ADMIN / STAFF / EMPRESA
+  ========================================================= */
   async crearAdmin(req, res) {
     try {
       if (!req.user?.superadmin)
@@ -62,7 +67,6 @@ export const AdminController = {
     }
   },
 
-  // ---------------- CREAR STAFF ----------------
   async crearStaff(req, res) {
     try {
       if (!req.user || !["admin", "superadmin"].includes(req.user.role))
@@ -87,25 +91,16 @@ export const AdminController = {
     }
   },
 
-  // ---------------- CREAR EMPRESA ----------------
   async crearEmpresa(req, res) {
     try {
-      console.log("BODY RECIBIDO EN CREAR-EMPRESA:", req.body);
       if (!req.user?.superadmin)
         return res.status(403).json({ message: "Solo SuperAdmin" });
 
       const { empresa, cuit, contactoNombre, contactoEmail, password } = req.body;
 
-      if (
-  !empresa?.trim() ||
-  !cuit?.trim() ||
-  !contactoNombre?.trim() ||
-  !contactoEmail?.trim() ||
-  !password?.trim()
-) {
-  return res.status(400).json({ message: "Faltan campos obligatorios" });
-}
-
+      if (!empresa?.trim() || !cuit?.trim() || !contactoNombre?.trim() || !contactoEmail?.trim() || !password?.trim()) {
+        return res.status(400).json({ message: "Faltan campos obligatorios" });
+      }
 
       const nueva = await AdminService.crearEmpresa({
         empresa,
@@ -124,7 +119,9 @@ export const AdminController = {
     }
   },
 
-  // ---------------- LISTAR ADMINS Y STAFF ----------------
+  /* =========================================================
+     📋 LISTAR ADMINS Y STAFF
+  ========================================================= */
   async listar(_req, res) {
     try {
       const lista = await AdminService.listarAdminsYStaff();
@@ -141,7 +138,9 @@ export const AdminController = {
     }
   },
 
-  // ---------------- BUSCAR POR CUIT ----------------
+  /* =========================================================
+     🔎 BUSCAR USUARIO
+  ========================================================= */
   async buscarUsuario(req, res) {
     try {
       const { cuit } = req.params;
@@ -165,9 +164,9 @@ export const AdminController = {
     return res.json({ message: "Sesión cerrada" });
   },
 
-    // ============================================================
-  // 🔥 SUPERADMIN: RESUMEN DEL SISTEMA
-  // ============================================================
+  /* =========================================================
+     📊 RESUMEN SUPERADMIN
+  ========================================================= */
   async resumenSuperadmin(_req, res) {
     try {
       const empresas = await UserRepository.countByRole("user");
@@ -180,9 +179,6 @@ export const AdminController = {
     }
   },
 
-  // ============================================================
-  // 🔥 SUPERADMIN: LISTAR TODOS LOS USUARIOS DEL SISTEMA
-  // ============================================================
   async listarUsuariosSistema(_req, res) {
     try {
       const lista = await UserRepository.findAll();
@@ -192,47 +188,145 @@ export const AdminController = {
     }
   },
 
-  // ============================================================
-  // 🔥 SUPERADMIN: IMPORTAR USUARIOS DESDE EXCEL
-  // ============================================================
-  async importarUsuarios(req, res) {
+  /* =========================================================
+     🧪 PERFILES DE EXAMEN POR EMPRESA (CUIT)
+  ========================================================= */
+
+  // LISTAR
+  async listarPerfiles(req, res) {
     try {
-      const { usuarios } = req.body;
+      const { cuit } = req.params;
 
-      if (!Array.isArray(usuarios)) {
-        return res.status(400).json({ message: "Formato inválido" });
-      }
+      const empresa = await UserRepository.findByCuit(cuit);
+      if (!empresa) return res.status(404).json({ message: "Empresa no encontrada" });
 
-      let creados = 0;
-      let existentes = 0;
+      return res.json(empresa.perfilesExamen || []);
+    } catch (e) {
+      return res.status(500).json({ message: e.message });
+    }
+  },
 
-      for (const u of usuarios) {
-        if (!u.cuit || !u.empresa) {
-          existentes++;
-          continue;
-        }
+  // CREAR
+  async crearPerfil(req, res) {
+    try {
+      const { cuit } = req.params;
+      const { nombrePerfil, estudios, descripcion } = req.body;
 
+      const empresa = await UserRepository.findByCuit(cuit);
+      if (!empresa) return res.status(404).json({ message: "Empresa no encontrada" });
+
+      empresa.perfilesExamen.push({
+        nombrePerfil,
+        estudios: estudios || [],
+        descripcion: descripcion || "",
+        activo: true,
+      });
+
+      await empresa.save();
+
+      return res.status(201).json({
+        message: "Perfil agregado",
+        perfiles: empresa.perfilesExamen,
+      });
+    } catch (e) {
+      return res.status(500).json({ message: e.message });
+    }
+  },
+
+  // EDITAR
+  async editarPerfil(req, res) {
+    try {
+      const { cuit, perfilId } = req.params;
+      const empresa = await UserRepository.findByCuit(cuit);
+
+      if (!empresa) return res.status(404).json({ message: "Empresa no encontrada" });
+
+      const perfil = empresa.perfilesExamen.id(perfilId);
+      if (!perfil) return res.status(404).json({ message: "Perfil no encontrado" });
+
+      const { nombrePerfil, estudios, descripcion, activo } = req.body;
+
+      if (nombrePerfil !== undefined) perfil.nombrePerfil = nombrePerfil;
+      if (estudios !== undefined) perfil.estudios = estudios;
+      if (descripcion !== undefined) perfil.descripcion = descripcion;
+      if (activo !== undefined) perfil.activo = activo;
+
+      await empresa.save();
+
+      return res.json({ message: "Perfil actualizado", perfil });
+    } catch (e) {
+      return res.status(500).json({ message: e.message });
+    }
+  },
+
+  // ELIMINAR
+  async eliminarPerfil(req, res) {
+    try {
+      const { cuit, perfilId } = req.params;
+      const empresa = await UserRepository.findByCuit(cuit);
+
+      if (!empresa) return res.status(404).json({ message: "Empresa no encontrada" });
+
+      const perfil =
+        empresa.perfilesExamen.id(perfilId) ||
+        empresa.perfilesExamen.find((p) => p._id?.toString() === perfilId) ||
+        empresa.perfilesExamen.find((p) => p.id === perfilId);
+
+      if (!perfil)
+        return res.status(404).json({ message: "Perfil no encontrado" });
+
+      perfil.deleteOne();
+      await empresa.save();
+
+      return res.json({ message: "Perfil eliminado", perfiles: empresa.perfilesExamen });
+    } catch (e) {
+      return res.status(500).json({ message: e.message });
+    }
+  },
+
+  async importarUsuarios(req, res) {
+  try {
+    const { usuarios } = req.body;
+
+    if (!Array.isArray(usuarios)) {
+      return res.status(400).json({ message: "Formato inválido" });
+    }
+
+    const resultados = [];
+
+    for (const u of usuarios) {
+      try {
         const existe = await UserRepository.findByCuit(u.cuit);
         if (existe) {
-          existentes++;
+          resultados.push({ cuit: u.cuit, status: "existente" });
           continue;
         }
 
         await UserRepository.crear({
           empresa: u.empresa,
           cuit: u.cuit,
-          contacto: { nombre: u.empresa, email: "" },
-          password: "temporal123",
+          contacto: {
+            nombre: u.contactoNombre || "",
+            email: u.contactoEmail || "",
+          },
+          password: u.password || "temporal123",
+          role: "user",
         });
 
-        creados++;
+        resultados.push({ cuit: u.cuit, status: "creado" });
+      } catch (err) {
+        resultados.push({
+          cuit: u.cuit || "-",
+          status: "error",
+          error: err.message,
+        });
       }
-
-      return res.json({ creados, existentes });
-    } catch (e) {
-      return res.status(500).json({ message: e.message });
     }
-  },
 
+    return res.json({ resultados });
+  } catch (e) {
+    return res.status(500).json({ message: e.message });
+  }
+},
 
 };

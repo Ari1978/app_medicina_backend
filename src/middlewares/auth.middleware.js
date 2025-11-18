@@ -152,3 +152,30 @@ export const authRequired = (req, res, next) => {
     return res.status(401).json({ message: "Token inválido" });
   }
 };
+
+// ---------------------------------------------------------------------
+// 🔐 7) Permiso especial para gestionar perfiles de examen
+//     SuperAdmin OR Staff con permisos: examenes / marketing
+// ---------------------------------------------------------------------
+export const requirePerfilManager = (req, res, next) => {
+  const user = req.user;
+
+  if (!user) {
+    return res.status(401).json({ message: "No autenticado" });
+  }
+
+  // SuperAdmin siempre permitido
+  if (user.role === "superadmin") return next();
+
+  // Staff debe tener permisos especiales
+  if (user.role === "staff") {
+    const permisos = user.permisos || [];
+    if (permisos.includes("examenes") || permisos.includes("marketing")) {
+      return next();
+    }
+  }
+
+  return res.status(403).json({
+    message: "Acceso denegado: requiere permiso de Exámenes o Marketing",
+  });
+};

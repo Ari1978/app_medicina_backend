@@ -1,14 +1,27 @@
 import mongoose from "mongoose";
 import { hashPassword, comparePassword } from "../utils/crypto.js";
 
+const PerfilExamenSchema = new mongoose.Schema(
+  {
+    nombrePerfil: { type: String, required: true, trim: true },
+
+    estudios: [{ type: String, trim: true }],
+
+    descripcion: { type: String, default: "", trim: true },
+
+    activo: { type: Boolean, default: true },
+  },
+  {
+    timestamps: false,
+    _id: true,        // 🔥 IMPORTANTE: permitir IDs únicos para cada perfil
+  }
+);
+
 const UserSchema = new mongoose.Schema(
   {
     contacto: {
       nombre: { type: String, required: true, trim: true },
-
-      // ⚠ EMAIL OPCIONAL + SIN UNIQUE + sparse para evitar duplicados null
       email: { type: String, trim: true, sparse: true },
-
       telefono: { type: String, default: "", trim: true },
     },
 
@@ -16,33 +29,35 @@ const UserSchema = new mongoose.Schema(
 
     empresa: { type: String, required: true, trim: true },
 
-    // 🔐 Password opcional (empresas importadas)
     password: { type: String, default: "" },
 
-    // Siempre "user" para las empresas
     role: { type: String, default: "user" },
 
     activo: { type: Boolean, default: true },
+
+    perfilesExamen: {
+      type: [PerfilExamenSchema],
+      default: [],
+    },
   },
   { timestamps: true }
 );
 
-/* -------------------------------------------------------------
-   🔒 Hash del password SOLO si existe y fue modificado
-------------------------------------------------------------- */
+// ---------------------------------------------------------
+// Hash password si fue modificado
+// ---------------------------------------------------------
 UserSchema.pre("save", async function (next) {
   if (!this.password || !this.isModified("password")) return next();
   this.password = await hashPassword(this.password);
   next();
 });
 
-/* -------------------------------------------------------------
-   🔑 Comparar password
-------------------------------------------------------------- */
+// ---------------------------------------------------------
+// Comparar password
+// ---------------------------------------------------------
 UserSchema.methods.comparePassword = function (plainPassword) {
-  if (!this.password) return false; // Empresa importada sin password
+  if (!this.password) return false;
   return comparePassword(plainPassword, this.password);
 };
 
 export default mongoose.model("User", UserSchema);
-

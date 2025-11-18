@@ -1,29 +1,23 @@
-// src/routers/admin.router.js
 import { Router } from "express";
 import { AdminController } from "../controllers/admin.controller.js";
-import { authAdminRequired, requireSuperAdmin } from "../middlewares/auth.middleware.js";
+import {
+  authAdminRequired,
+  requireSuperAdmin,
+  requirePerfilManager,
+} from "../middlewares/auth.middleware.js";
 
 const router = Router();
 
-/* =========================================================
-   🔐 AUTH ADMIN / SUPERADMIN
-========================================================= */
-
-// Login Admin / SuperAdmin
+/* ================================
+   🔐 AUTH
+================================ */
 router.post("/login", AdminController.login);
-
-// Obtener admin autenticado
 router.get("/me", authAdminRequired, AdminController.me);
-
-// Logout
 router.post("/logout", authAdminRequired, AdminController.logout);
 
-
-/* =========================================================
-   🛠️ GESTIÓN ADMIN / STAFF
-========================================================= */
-
-// Solo SuperAdmin crea otros Admin
+/* ================================
+   👑 ADMIN / STAFF / EMPRESA
+================================ */
 router.post(
   "/crear-admin",
   authAdminRequired,
@@ -31,14 +25,12 @@ router.post(
   AdminController.crearAdmin
 );
 
-// Admin y SuperAdmin crean Staff
 router.post(
   "/crear-staff",
   authAdminRequired,
   AdminController.crearStaff
 );
 
-// ==================== CREAR EMPRESA (SUPERADMIN) ====================
 router.post(
   "/crear-empresa",
   authAdminRequired,
@@ -46,26 +38,21 @@ router.post(
   AdminController.crearEmpresa
 );
 
-// Listar admins y staff
 router.get(
   "/listar-usuarios",
   authAdminRequired,
   AdminController.listar
 );
 
-// Buscar usuario por CUIT
 router.get(
   "/usuario/:cuit",
   authAdminRequired,
   AdminController.buscarUsuario
 );
 
-
-/* =========================================================
-   👑 SUPERADMIN — RUTAS EXCLUSIVAS
-========================================================= */
-
-// Resumen del sistema
+/* ================================
+   👑 SUPERADMIN
+================================ */
 router.get(
   "/resumen-superadmin",
   authAdminRequired,
@@ -73,7 +60,6 @@ router.get(
   AdminController.resumenSuperadmin
 );
 
-// Listar todos los usuarios del sistema
 router.get(
   "/usuarios",
   authAdminRequired,
@@ -81,12 +67,47 @@ router.get(
   AdminController.listarUsuariosSistema
 );
 
-// Importar usuarios desde Excel
 router.post(
   "/importar-usuarios",
   authAdminRequired,
   requireSuperAdmin,
   AdminController.importarUsuarios
+);
+
+/* ================================
+   🧪 PERFILES (CUIT)
+================================ */
+
+// Listar perfiles
+router.get(
+  "/empresa/:cuit/perfiles",
+  authAdminRequired,
+  requirePerfilManager,
+  AdminController.listarPerfiles
+);
+
+// Crear perfil
+router.post(
+  "/empresa/:cuit/perfiles",
+  authAdminRequired,
+  requirePerfilManager,
+  AdminController.crearPerfil
+);
+
+// Editar perfil
+router.put(
+  "/empresa/:cuit/perfiles/:perfilId",
+  authAdminRequired,
+  requirePerfilManager,
+  AdminController.editarPerfil
+);
+
+// Eliminar perfil
+router.delete(
+  "/empresa/:cuit/perfiles/:perfilId",
+  authAdminRequired,
+  requirePerfilManager,
+  AdminController.eliminarPerfil
 );
 
 export default router;
