@@ -4,13 +4,13 @@ import AdminModel from "../models/admin.model.js";
 import StaffModel from "../models/staffUser.model.js";
 
 export const UserRepository = {
-
   /* =========================================================
      🔍 Buscar ADMIN o STAFF por username (para Login)
   ========================================================= */
   async findByUsername(username) {
     const admin = await AdminModel.findOne({ username });
-    if (admin) return { ...admin._doc, role: admin.superadmin ? "superadmin" : "admin" };
+    if (admin)
+      return { ...admin._doc, role: admin.superadmin ? "superadmin" : "admin" };
 
     const staff = await StaffModel.findOne({ username });
     if (staff) return { ...staff._doc, role: "staff" };
@@ -19,7 +19,7 @@ export const UserRepository = {
   },
 
   /* =========================================================
-     🔍 Buscar EMPRESA por CUIT
+     🔍 Buscar EMPRESA (User) por CUIT
   ========================================================= */
   async findByCuit(cuit) {
     return await UserModel.findOne({ cuit });
@@ -45,9 +45,9 @@ export const UserRepository = {
     const staff = await StaffModel.find().lean();
 
     return [
-      ...empresas.map(e => ({ ...e, tipo: "empresa" })),
-      ...admins.map(a => ({ ...a, tipo: "admin" })),
-      ...staff.map(s => ({ ...s, tipo: "staff" })),
+      ...empresas.map((e) => ({ ...e, tipo: "empresa" })),
+      ...admins.map((a) => ({ ...a, tipo: "admin" })),
+      ...staff.map((s) => ({ ...s, tipo: "staff" })),
     ];
   },
 
@@ -76,7 +76,7 @@ export const UserRepository = {
   async crear(data) {
     if (data.role === "admin") return await AdminModel.create(data);
     if (data.role === "staff") return await StaffModel.create(data);
-    return await UserModel.create(data); // empresas
+    return await UserModel.create(data); // empresas ya registradas
   },
 
   /* =========================================================

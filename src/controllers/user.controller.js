@@ -9,53 +9,102 @@ import {
 import { userResponseDTO } from "../dto/user.dto.js";
 import { UserRepository } from "../repositories/user.repository.js";
 import { LoginDTO } from "../dto/login.dto.js";
+import EmpresaPrecargada from "../models/empresaPrecargada.model.js";
 
 export const UserController = {
 
-  // ============================================================
-  // 🚀 REGISTRO EMPRESA VALIDADO POR CUIT
-  // ============================================================
-  async register(req, res) {
+  /* ===============================
+      ✔ VALIDAR CUIT (registro)
+  ================================ */
+  async checkCuit(req, res) {
     try {
-      const { cuit, email, password, contacto } = req.body;
+      const { cuit } = req.body;
 
-      // 1) Validar CUIT
-      if (!cuit?.trim()) {
+      if (!cuit) {
         return res.status(400).json({ message: "CUIT requerido" });
       }
 
-      // 2) Buscar CUIT en la DB (creado por SuperAdmin)
-      const empresaBase = await UserRepository.findByCuit(cuit.trim());
-      if (!empresaBase) {
-        return res.status(403).json({
-          message: "Empresa no autorizada. Contactar a ASMEL.",
+      // 1) Revisar empresas precargadas habilitadas
+      const pre = await EmpresaPrecargada.findOne({ cuit, habilitado: true });
+      if (!pre) {
+        return res.status(404).json({
+          message: "Esta empresa no está habilitada para registrarse",
         });
       }
 
-      // 3) Ver si YA se registró
-      if (empresaBase.password) {
+      // 2) Verificar si ya está registrada
+      const user = await UserRepository.findByCuit(cuit);
+      if (user) {
         return res.status(400).json({
-          message: "Esta empresa ya completó su registro.",
+          message: "Esta empresa ya está registrada",
         });
       }
 
-      // 4) Actualizar datos del registro
-      const user = await UserService.completarRegistro(empresaBase._id, {
-        email: email?.trim() || empresaBase.contacto?.email || "",
-        password,
-        contacto,
-      });
-
-      return res.status(201).json({
-        message: "Registro completado correctamente",
-        user: userResponseDTO(user),
+      return res.json({
+        cuit,
+        empresa: pre.empresa,
+        nombre: "",
+        email: "",
       });
 
     } catch (e) {
-      console.error("❌ Error en register:", e.message);
-      return res.status(400).json({ message: e.message });
+      return res.status(500).json({ message: e.message });
     }
   },
+
+  /* ===============================
+      📝 REGISTRAR EMPRESA
+  ================================ */
+ async register(req, res) {
+  try {
+    const { cuit, password, contacto } = req.body;
+
+    if (!cuit || !password || !contacto?.email || !contacto?.nombre) {
+      return res.status(400).json({ message: "Datos incompletos" });
+    }
+
+    // 1) Debe existir en EmpresaPrecargada
+    const pre = await EmpresaPrecargada.findOne({ cuit, habilitado: true });
+    if (!pre) {
+      return res.status(400).json({
+        message: "La empresa no está habilitada para registrarse",
+      });
+    }
+
+    // 2) Buscar si ya existe un User real
+    let user = await UserRepository.findByCuit(cuit);
+
+    if (!user) {
+      // ⚠ IMPORTANTE: contacto SIEMPRE se guarda ahora recién en el registro
+      user = await UserRepository.crear({
+        empresa: pre.empresa,
+        cuit,
+        password,
+        role: "user",
+        contacto: {
+          nombre: contacto.nombre,
+          email: contacto.email,
+        },
+      });
+    } else {
+      // Si ya existe → actualizarlo SIN permitir email vacío
+      user.contacto.nombre = contacto.nombre;
+      if (contacto.email) user.contacto.email = contacto.email;
+
+      user.password = password;
+      await user.save();
+    }
+
+    // 3) Marcar como registrada
+    pre.habilitado = false;
+    await pre.save();
+
+    return res.status(201).json({ message: "Registro exitoso" });
+  } catch (e) {
+    console.error("❌ Error en register:", e);
+    return res.status(500).json({ message: e.message });
+  }
+},
 
   // ============================================================
   // LOGIN
@@ -103,34 +152,5 @@ export const UserController = {
   async logout(_req, res) {
     clearAllAuthCookies(res);
     return res.json({ message: "👋 Sesión cerrada correctamente" });
-  },
-
-  // ============================================================
-  // VALIDAR CUIT ANTES DEL REGISTRO
-  // ============================================================
-  async checkCuit(req, res) {
-    try {
-      const { cuit } = req.body;
-
-      if (!cuit || !cuit.trim()) {
-        return res.status(400).json({ message: "CUIT requerido" });
-      }
-
-      const empresa = await UserRepository.findByCuit(cuit.trim());
-      if (!empresa) {
-        return res
-          .status(404)
-          .json({ message: "CUIT no habilitado. Contactar a Asmel" });
-      }
-
-      return res.json({
-        cuit: empresa.cuit,
-        nombre: empresa.empresa || empresa.nombre,
-        email: empresa.contacto?.email || "",
-      });
-    } catch (err) {
-      console.error("❌ Error checkCuit:", err);
-      return res.status(500).json({ message: "Error interno del servidor" });
-    }
   },
 };

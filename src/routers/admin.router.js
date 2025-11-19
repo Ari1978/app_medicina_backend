@@ -1,5 +1,8 @@
+// src/routers/admin.router.js
 import { Router } from "express";
 import { AdminController } from "../controllers/admin.controller.js";
+import { uploadCsv } from "../config/multer.config.js";
+
 import {
   authAdminRequired,
   requireSuperAdmin,
@@ -38,21 +41,29 @@ router.post(
   AdminController.crearEmpresa
 );
 
-router.get(
-  "/listar-usuarios",
-  authAdminRequired,
-  AdminController.listar
-);
+/* ================================
+   VALIDAR CUIT PARA REGISTRO
+================================ */
+router.post("/validar-empresa", AdminController.validarEmpresa);
 
-router.get(
-  "/usuario/:cuit",
+/* ================================
+   PRECARGA MASIVA DE EMPRESAS
+   Espera body: { empresas: [{ empresa, cuit }, ...] }
+================================ */
+router.post(
+  "/importar-empresas",
   authAdminRequired,
-  AdminController.buscarUsuario
+  requireSuperAdmin,
+  AdminController.importarEmpresas
 );
 
 /* ================================
-   👑 SUPERADMIN
+   LISTADOS / STATS
 ================================ */
+router.get("/listar-usuarios", authAdminRequired, AdminController.listar);
+
+router.get("/usuario/:cuit", authAdminRequired, AdminController.buscarUsuario);
+
 router.get(
   "/resumen-superadmin",
   authAdminRequired,
@@ -67,6 +78,9 @@ router.get(
   AdminController.listarUsuariosSistema
 );
 
+/* ================================
+   IMPORTAR USUARIOS COMPLETOS (legacy)
+================================ */
 router.post(
   "/importar-usuarios",
   authAdminRequired,
@@ -75,10 +89,20 @@ router.post(
 );
 
 /* ================================
+   IMPORTAR USUARIOS MASIVOS (CSV)
+================================ */
+router.post(
+  "/importar-usuarios",
+  authAdminRequired,
+  requireSuperAdmin,
+  uploadCsv.single("file"),
+  AdminController.importarUsuarios
+);
+
+
+/* ================================
    🧪 PERFILES (CUIT)
 ================================ */
-
-// Listar perfiles
 router.get(
   "/empresa/:cuit/perfiles",
   authAdminRequired,
@@ -86,7 +110,6 @@ router.get(
   AdminController.listarPerfiles
 );
 
-// Crear perfil
 router.post(
   "/empresa/:cuit/perfiles",
   authAdminRequired,
@@ -94,7 +117,6 @@ router.post(
   AdminController.crearPerfil
 );
 
-// Editar perfil
 router.put(
   "/empresa/:cuit/perfiles/:perfilId",
   authAdminRequired,
@@ -102,7 +124,6 @@ router.put(
   AdminController.editarPerfil
 );
 
-// Eliminar perfil
 router.delete(
   "/empresa/:cuit/perfiles/:perfilId",
   authAdminRequired,

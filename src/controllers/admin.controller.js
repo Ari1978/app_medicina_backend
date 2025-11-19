@@ -1,5 +1,7 @@
 // src/controllers/admin.controller.js
 import { AdminService } from "../services/admin.service.js";
+import csv from "csv-parser";
+import fs from "fs";
 import {
   clearAllAuthCookies,
   setAuthCookie,
@@ -13,7 +15,6 @@ import { staffResponseDTO } from "../dto/staff.dto.js";
 import { userResponseDTO } from "../dto/user.dto.js";
 
 export const AdminController = {
-
   /* =========================================================
      🔐 LOGIN ADMIN / SUPERADMIN
   ========================================================= */
@@ -21,7 +22,9 @@ export const AdminController = {
     try {
       const { username, password } = req.body;
       if (!username || !password)
-        return res.status(400).json({ message: "Usuario y contraseña requeridos" });
+        return res
+          .status(400)
+          .json({ message: "Usuario y contraseña requeridos" });
 
       const admin = await AdminService.login(username.trim(), password);
 
@@ -91,31 +94,71 @@ export const AdminController = {
     }
   },
 
+  /* =========================================================
+     🏢 CREAR EMPRESA SIMPLE (solo empresa + cuit → precarga)
+  ========================================================= */
   async crearEmpresa(req, res) {
     try {
       if (!req.user?.superadmin)
         return res.status(403).json({ message: "Solo SuperAdmin" });
 
-      const { empresa, cuit, contactoNombre, contactoEmail, password } = req.body;
+      const { empresa, cuit } = req.body;
 
-      if (!empresa?.trim() || !cuit?.trim() || !contactoNombre?.trim() || !contactoEmail?.trim() || !password?.trim()) {
-        return res.status(400).json({ message: "Faltan campos obligatorios" });
+      if (!empresa?.trim() || !cuit?.trim()) {
+        return res
+          .status(400)
+          .json({ message: "Faltan datos obligatorios (empresa, cuit)" });
       }
 
-      const nueva = await AdminService.crearEmpresa({
-        empresa,
-        cuit,
-        contactoNombre,
-        contactoEmail,
-        password,
-      });
+      const nueva = await AdminService.crearEmpresaSimple({ empresa, cuit });
 
       return res.status(201).json({
-        message: "Empresa creada",
+        message: "Empresa precargada correctamente",
         empresa: nueva,
       });
     } catch (e) {
       return res.status(400).json({ message: e.message });
+    }
+  },
+
+  /* =========================================================
+     ✔ VALIDAR CUIT PARA REGISTRO
+  ========================================================= */
+  async validarEmpresa(req, res) {
+    try {
+      const { cuit } = req.body;
+      if (!cuit)
+        return res.status(400).json({ message: "CUIT requerido" });
+
+      const existe = await AdminService.validarEmpresa(cuit);
+
+      return res.json({ valido: existe });
+    } catch (e) {
+      return res.status(500).json({ message: e.message });
+    }
+  },
+
+  /* =========================================================
+     📥 IMPORTAR EMPRESAS PRECARGADAS (JSON desde CSV)
+     Espera body: { empresas: [{ empresa, cuit }, ...] }
+  ========================================================= */
+  async importarEmpresas(req, res) {
+    try {
+      const { empresas } = req.body;
+
+      if (!Array.isArray(empresas)) {
+        return res
+          .status(400)
+          .json({ message: "Formato inválido: se espera empresas[]" });
+      }
+
+      const resultados = await AdminService.importarEmpresasPrecargadas(
+        empresas
+      );
+
+      return res.json({ resultados });
+    } catch (e) {
+      return res.status(500).json({ message: e.message });
     }
   },
 
@@ -147,7 +190,8 @@ export const AdminController = {
       if (!cuit) return res.status(400).json({ message: "CUIT requerido" });
 
       const user = await UserRepository.findByCuit(cuit);
-      if (!user) return res.status(404).json({ message: "Usuario no encontrado" });
+      if (!user)
+        return res.status(404).json({ message: "Usuario no encontrado" });
 
       return res.json(userResponseDTO(user));
     } catch (e) {
@@ -192,13 +236,13 @@ export const AdminController = {
      🧪 PERFILES DE EXAMEN POR EMPRESA (CUIT)
   ========================================================= */
 
-  // LISTAR
   async listarPerfiles(req, res) {
     try {
       const { cuit } = req.params;
 
       const empresa = await UserRepository.findByCuit(cuit);
-      if (!empresa) return res.status(404).json({ message: "Empresa no encontrada" });
+      if (!empresa)
+        return res.status(404).json({ message: "Empresa no encontrada" });
 
       return res.json(empresa.perfilesExamen || []);
     } catch (e) {
@@ -206,14 +250,14 @@ export const AdminController = {
     }
   },
 
-  // CREAR
   async crearPerfil(req, res) {
     try {
       const { cuit } = req.params;
       const { nombrePerfil, estudios, descripcion } = req.body;
 
       const empresa = await UserRepository.findByCuit(cuit);
-      if (!empresa) return res.status(404).json({ message: "Empresa no encontrada" });
+      if (!empresa)
+        return res.status(404).json({ message: "Empresa no encontrada" });
 
       empresa.perfilesExamen.push({
         nombrePerfil,
@@ -233,16 +277,17 @@ export const AdminController = {
     }
   },
 
-  // EDITAR
   async editarPerfil(req, res) {
     try {
       const { cuit, perfilId } = req.params;
       const empresa = await UserRepository.findByCuit(cuit);
 
-      if (!empresa) return res.status(404).json({ message: "Empresa no encontrada" });
+      if (!empresa)
+        return res.status(404).json({ message: "Empresa no encontrada" });
 
       const perfil = empresa.perfilesExamen.id(perfilId);
-      if (!perfil) return res.status(404).json({ message: "Perfil no encontrado" });
+      if (!perfil)
+        return res.status(404).json({ message: "Perfil no encontrado" });
 
       const { nombrePerfil, estudios, descripcion, activo } = req.body;
 
@@ -259,13 +304,13 @@ export const AdminController = {
     }
   },
 
-  // ELIMINAR
   async eliminarPerfil(req, res) {
     try {
       const { cuit, perfilId } = req.params;
       const empresa = await UserRepository.findByCuit(cuit);
 
-      if (!empresa) return res.status(404).json({ message: "Empresa no encontrada" });
+      if (!empresa)
+        return res.status(404).json({ message: "Empresa no encontrada" });
 
       const perfil =
         empresa.perfilesExamen.id(perfilId) ||
@@ -278,54 +323,119 @@ export const AdminController = {
       perfil.deleteOne();
       await empresa.save();
 
-      return res.json({ message: "Perfil eliminado", perfiles: empresa.perfilesExamen });
+      return res.json({
+        message: "Perfil eliminado",
+        perfiles: empresa.perfilesExamen,
+      });
     } catch (e) {
       return res.status(500).json({ message: e.message });
     }
   },
 
+  /* =========================================================
+     (LEGACY) IMPORTAR USUARIOS COMPLETOS
+     (lo dejo igual por si ya lo usás)
+  ========================================================= */
   async importarUsuarios(req, res) {
-  try {
-    const { usuarios } = req.body;
+    try {
+      const { usuarios } = req.body;
 
-    if (!Array.isArray(usuarios)) {
-      return res.status(400).json({ message: "Formato inválido" });
+      if (!Array.isArray(usuarios)) {
+        return res.status(400).json({ message: "Formato inválido" });
+      }
+
+      const resultados = [];
+
+      for (const u of usuarios) {
+        try {
+          const existe = await UserRepository.findByCuit(u.cuit);
+          if (existe) {
+            resultados.push({ cuit: u.cuit, status: "existente" });
+            continue;
+          }
+
+          await UserRepository.crear({
+            empresa: u.empresa,
+            cuit: u.cuit,
+            contacto: {
+              nombre: u.contactoNombre || null,
+              email: u.contactoEmail || null,
+            },
+            password: u.password || "temporal123",
+            role: "user",
+          });
+
+          resultados.push({ cuit: u.cuit, status: "creado" });
+        } catch (err) {
+          resultados.push({
+            cuit: u.cuit || "-",
+            status: "error",
+            error: err.message,
+          });
+        }
+      }
+
+      return res.json({ resultados });
+    } catch (e) {
+      return res.status(500).json({ message: e.message });
+    }
+  },
+
+  async importarEmpresasCSV(req, res) {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: "Debes subir un archivo CSV" });
     }
 
-    const resultados = [];
+    const empresas = [];
 
-    for (const u of usuarios) {
-      try {
-        const existe = await UserRepository.findByCuit(u.cuit);
-        if (existe) {
-          resultados.push({ cuit: u.cuit, status: "existente" });
-          continue;
+    fs.createReadStream(req.file.path)
+      .pipe(csv())
+      .on("data", (row) => {
+        if (row.empresa && row.cuit) {
+          empresas.push({
+            empresa: row.empresa.trim(),
+            cuit: row.cuit.trim(),
+          });
+        }
+      })
+      .on("end", async () => {
+        const resultados = [];
+
+        for (const e of empresas) {
+          try {
+            const existe = await UserRepository.findByCuit(e.cuit);
+            if (existe) {
+              resultados.push({ cuit: e.cuit, status: "existente" });
+              continue;
+            }
+
+            await UserRepository.crear({
+              empresa: e.empresa,
+              cuit: e.cuit,
+              role: "user",
+              contacto: undefined,
+              password: undefined,
+              perfilesExamen: [],
+            });
+
+            resultados.push({ cuit: e.cuit, status: "creado" });
+          } catch (err) {
+            resultados.push({
+              cuit: e.cuit,
+              status: "error",
+              error: err.message,
+            });
+          }
         }
 
-        await UserRepository.crear({
-          empresa: u.empresa,
-          cuit: u.cuit,
-          contacto: {
-            nombre: u.contactoNombre || "",
-            email: u.contactoEmail || "",
-          },
-          password: u.password || "temporal123",
-          role: "user",
-        });
+        fs.unlinkSync(req.file.path); // borrar archivo temporal
 
-        resultados.push({ cuit: u.cuit, status: "creado" });
-      } catch (err) {
-        resultados.push({
-          cuit: u.cuit || "-",
-          status: "error",
-          error: err.message,
-        });
-      }
-    }
+        return res.json({ resultados });
+      });
 
-    return res.json({ resultados });
-  } catch (e) {
-    return res.status(500).json({ message: e.message });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
   }
 },
 
