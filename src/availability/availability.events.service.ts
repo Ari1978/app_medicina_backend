@@ -11,14 +11,14 @@ export class AvailabilityEventsService implements OnModuleInit {
   onModuleInit() {
     const redisUrl = process.env.REDIS_URL;
 
-    // ✅ Si no hay REDIS_URL, NO intenta conectarse
+    // ✅ Si no hay Redis, el sistema sigue funcionando igual
     if (!redisUrl) {
       this.logger.warn('⚠️ REDIS_URL no definida. Eventos en tiempo real desactivados.');
       return;
     }
 
     const redisOptions = {
-      tls: {}, // ✅ OBLIGATORIO para rediss:// (Upstash)
+      tls: {}, // ✅ requerido por Upstash (rediss://)
       maxRetriesPerRequest: null,
       enableReadyCheck: false,
       retryStrategy(times: number) {
@@ -40,25 +40,20 @@ export class AvailabilityEventsService implements OnModuleInit {
     this.pub.on('error', (err: unknown) => {
       if (err instanceof Error) {
         this.logger.error('❌ Error Redis PUB:', err.message);
-      } else {
-        this.logger.error('❌ Error Redis PUB desconocido');
       }
     });
 
     this.sub.on('error', (err: unknown) => {
       if (err instanceof Error) {
         this.logger.error('❌ Error Redis SUB:', err.message);
-      } else {
-        this.logger.error('❌ Error Redis SUB desconocido');
       }
     });
 
-    // ✅ Se suscribe solo si Redis existe
     this.sub.subscribe('turno.updated', (err) => {
       if (err) {
         this.logger.error('❌ Error al suscribirse a turno.updated');
       } else {
-        this.logger.log('📡 Suscripto al canal turno.updated');
+        this.logger.log('📡 Suscripto a turno.updated');
       }
     });
   }
@@ -71,27 +66,26 @@ export class AvailabilityEventsService implements OnModuleInit {
         'turno.updated',
         JSON.stringify({ empresaId, fecha }),
       );
-    } catch (err: unknown) {
+    } catch (err) {
       if (err instanceof Error) {
         this.logger.error('❌ Error publicando evento:', err.message);
-      } else {
-        this.logger.error('❌ Error publicando evento desconocido');
       }
     }
   }
 
   subscribe(callback: (data: { empresaId: string; fecha: string }) => void) {
-    if (!this.sub) return;
+    if (!this.sub) {
+      this.logger.warn('⚠️ Redis SUB no disponible. Listener ignorado.');
+      return;
+    }
 
     this.sub.on('message', (_channel: string, message: string) => {
       try {
         const data = JSON.parse(message);
         callback(data);
-      } catch (err: unknown) {
+      } catch (err) {
         if (err instanceof Error) {
           this.logger.error('❌ Error procesando evento:', err.message);
-        } else {
-          this.logger.error('❌ Error procesando evento desconocido');
         }
       }
     });
