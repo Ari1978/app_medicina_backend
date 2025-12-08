@@ -7,23 +7,25 @@ import { JwtAuthGuard } from './guards/jwt.guard';
 export class AuthController {
   constructor(private authService: AuthService) {}
 
-  // ✅ LOGIN EMPRESA (LOCAL + PRODUCCIÓN)
+  // ✅ LOGIN EMPRESA (LOCAL + FLY)
   @Post('login')
   async loginEmpresa(
     @Body('cuit') cuit: string,
     @Body('password') password: string,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const { token, empresa } = await this.authService.loginEmpresa(cuit, password);
+    const { token, empresa } =
+      await this.authService.loginEmpresa(cuit, password);
+
+    const isProd = process.env.NODE_ENV === 'production';
 
     res.cookie('asmel_empresa_token', token, {
-  httpOnly: true,
-  secure: true,          // ✅ SIEMPRE TRUE EN PRODUCCIÓN
-  sameSite: 'none',      // ✅ OBLIGATORIO PARA VERCEL + RENDER
-  path: '/',
-  maxAge: 24 * 60 * 60 * 1000,
-});
-
+      httpOnly: true,
+      secure: isProd,          // ✅ SOLO TRUE EN PRODUCCIÓN
+      sameSite: isProd ? 'none' : 'lax', // ✅ LOCAL vs FLY
+      path: '/',
+      maxAge: 24 * 60 * 60 * 1000,
+    });
 
     return empresa;
   }
@@ -38,10 +40,12 @@ export class AuthController {
   // ✅ LOGOUT EMPRESA
   @Post('logout')
   async logout(@Res({ passthrough: true }) res: Response) {
+    const isProd = process.env.NODE_ENV === 'production';
+
     res.clearCookie('asmel_empresa_token', {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'none',
+      secure: isProd,
+      sameSite: isProd ? 'none' : 'lax',
       path: '/',
     });
 

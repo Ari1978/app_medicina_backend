@@ -7,15 +7,15 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const logger = new Logger('Bootstrap');
 
-  // ✅ ORÍGENES PERMITIDOS (LOCAL + VERCEL)
+  // ✅ ORÍGENES PERMITIDOS (LOCAL + FRONT EN FLY)
   const whitelist = [
     'http://localhost:3000',
     'http://localhost:5173',
-    'https://app-medicina-frontend-jde5a1bfx-ari1978s-projects.vercel.app',
-  ];
+    process.env.FRONTEND_URL, // 👈 el front de Fly va acá
+  ].filter(Boolean);
 
   app.enableCors({
-    origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
+    origin: (origin, callback) => {
       if (!origin) return callback(null, true);
       if (whitelist.includes(origin)) return callback(null, true);
       return callback(new Error('CORS bloqueado: ' + origin), false);
@@ -39,9 +39,11 @@ async function bootstrap() {
     }),
   );
 
-  // ✅ RENDER USA ESTE PUERTO
-  const PORT = process.env.PORT || 4000;
-  await app.listen(PORT);
+  // ✅ PUERTO PARA FLY
+  const PORT = process.env.PORT || 8080;
+
+  // ✅ OBLIGATORIO EN FLY
+  await app.listen(PORT, '0.0.0.0');
 
   logger.log(`🚀 ASMEL API corriendo en puerto ${PORT}`);
 }
