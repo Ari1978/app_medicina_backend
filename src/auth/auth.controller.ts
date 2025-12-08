@@ -17,12 +17,13 @@ export class AuthController {
     const { token, empresa } = await this.authService.loginEmpresa(cuit, password);
 
     res.cookie('asmel_empresa_token', token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production', // ✅ LOCAL: false | PROD: true
-      sameSite: 'none',                              // ✅ OBLIGATORIO PARA VERCEL + RENDER
-      path: '/',
-      maxAge: 24 * 60 * 60 * 1000,
-    });
+  httpOnly: true,
+  secure: true,          // ✅ SIEMPRE TRUE EN PRODUCCIÓN
+  sameSite: 'none',      // ✅ OBLIGATORIO PARA VERCEL + RENDER
+  path: '/',
+  maxAge: 24 * 60 * 60 * 1000,
+});
+
 
     return empresa;
   }
