@@ -3,10 +3,11 @@ import { AuthService } from './auth.service';
 import { Response, Request } from 'express';
 import { JwtAuthGuard } from './guards/jwt.guard';
 
-@Controller('auth/empresa')
+@Controller('api/empresa')
 export class AuthController {
   constructor(private authService: AuthService) {}
 
+  // ✅ LOGIN EMPRESA (LOCAL + PRODUCCIÓN)
   @Post('login')
   async loginEmpresa(
     @Body('cuit') cuit: string,
@@ -17,8 +18,8 @@ export class AuthController {
 
     res.cookie('asmel_empresa_token', token, {
       httpOnly: true,
-      secure: false, // en producción poner true
-      sameSite: 'lax',
+      secure: process.env.NODE_ENV === 'production', // ✅ LOCAL: false | PROD: true
+      sameSite: 'none',                              // ✅ OBLIGATORIO PARA VERCEL + RENDER
       path: '/',
       maxAge: 24 * 60 * 60 * 1000,
     });
@@ -26,15 +27,23 @@ export class AuthController {
     return empresa;
   }
 
+  // ✅ SESIÓN EMPRESA
   @Get('me')
   @UseGuards(JwtAuthGuard)
   async me(@Req() req: Request) {
     return req.user;
   }
 
+  // ✅ LOGOUT EMPRESA
   @Post('logout')
   async logout(@Res({ passthrough: true }) res: Response) {
-    res.clearCookie('asmel_empresa_token');
+    res.clearCookie('asmel_empresa_token', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'none',
+      path: '/',
+    });
+
     return { message: 'Logout exitoso' };
   }
 }
