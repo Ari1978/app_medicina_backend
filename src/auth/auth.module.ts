@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { ConfigModule, ConfigService } from '@nestjs/config';
@@ -11,6 +11,9 @@ import { SuperAdminModule } from '../superadmin/superadmin.module';
 import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 
+// Guards
+import { JwtEmpresaGuard } from './guards/jwt-empresa.guard';
+
 // Strategies
 import { JwtEmpresaStrategy } from './strategies/jwt-empresa.strategy';
 import { JwtAdminStrategy } from './strategies/jwt-admin.estrategy';
@@ -19,12 +22,11 @@ import { JwtSuperAdminStrategy } from './strategies/jwt-superadmin.strategy';
 
 @Module({
   imports: [
-    EmpresaModule,
-    AdminModule,
-    StaffModule,
-    SuperAdminModule,
+    forwardRef(() => EmpresaModule),
+    forwardRef(() => AdminModule),
+    forwardRef(() => StaffModule),
+    forwardRef(() => SuperAdminModule),
 
-    // ❗ SIN defaultStrategy: 'jwt'
     PassportModule,
 
     JwtModule.registerAsync({
@@ -36,14 +38,27 @@ import { JwtSuperAdminStrategy } from './strategies/jwt-superadmin.strategy';
       }),
     }),
   ],
+
   controllers: [AuthController],
+
   providers: [
     AuthService,
+
+    // ✅ STRATEGIES
     JwtEmpresaStrategy,
     JwtAdminStrategy,
     JwtStaffStrategy,
     JwtSuperAdminStrategy,
+
+    // ✅ GUARD
+    JwtEmpresaGuard,
   ],
-  exports: [AuthService],
+
+  // ✅ ESTO ES LO QUE TE FALTABA
+  exports: [
+    AuthService,
+    JwtEmpresaStrategy,
+    JwtEmpresaGuard,
+  ],
 })
 export class AuthModule {}

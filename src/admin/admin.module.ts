@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 
 import { AdminController } from './admin.controller';
@@ -16,9 +16,9 @@ import { PdfStorageService } from '../examenes/pdf-storage.service';
 import { TurnoModule } from '../turno/turno.module';
 
 import { AdminSedeController } from './admin-sede.controller';
-
-// 🔥 ESTO ES LO QUE FALTABA
 import { SedeModule } from '../sedes/sede.module';
+
+import { AuthModule } from '../auth/auth.module'; // ✅ CLAVE
 
 @Module({
   imports: [
@@ -26,23 +26,27 @@ import { SedeModule } from '../sedes/sede.module';
       { name: Admin.name, schema: AdminSchema },
       { name: Staff.name, schema: StaffSchema },
     ]),
-    StaffModule,
-    StaffUserModule,
-    EmpresaPrecargadaModule,
-    TurnoModule,
 
-    // 🔥 NECESARIO PARA QUE Admin pueda usar SedeService
-    SedeModule,
+    // ✅ TODOS LOS CRUCES CON forwardRef
+    forwardRef(() => StaffModule),
+    forwardRef(() => StaffUserModule),
+    forwardRef(() => EmpresaPrecargadaModule),
+    forwardRef(() => TurnoModule),
+    forwardRef(() => SedeModule),
+    forwardRef(() => AuthModule),
   ],
+
   controllers: [
     AdminController,
     AdminExamenController,
     AdminSedeController,
   ],
+
   providers: [
     AdminService,
     PdfStorageService,
   ],
+
   exports: [AdminService],
 })
 export class AdminModule {}

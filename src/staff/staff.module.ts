@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 
 // Controllers
@@ -20,28 +20,26 @@ import { Staff, StaffSchema } from './schemas/staff.schema';
 import { JwtStaffStrategy } from 'src/auth/strategies/jwt-staff.strategy';
 import { StaffPermisoGuard } from '../auth/guards/staff-permiso.guard';
 
+// ❗ ACÁ ESTABA EL PROBLEMA: dependencias circulares
 import { TurnoModule } from 'src/turno/turno.module';
 import { FormularioModule } from '../formularios/formulario.module';
+import { AuthModule } from '../auth/auth.module';
 
 @Module({
   imports: [
-    TurnoModule,
+    forwardRef(() => TurnoModule),       // ✅ antes estaba directo
+    forwardRef(() => FormularioModule),  // ✅ también es circular
+    forwardRef(() => AuthModule),        // ✅ lo necesitás por guards/strategy
 
-    // Solo StaffSchema, nada más
     MongooseModule.forFeature([
       { name: Staff.name, schema: StaffSchema },
     ]),
-
-    // Agregamos el módulo unificado de formularios
-    FormularioModule,
   ],
 
   controllers: [
     StaffController,
     StaffExamenesController,
     StaffPermisosController,
-
-    // Nuevo controller para formularios unificados
     FormularioStaffController,
   ],
 

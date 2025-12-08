@@ -12,10 +12,7 @@ import { FeriadosService } from './feriados.service';
 import { AvailabilityCacheService } from './availability.cache.service';
 import { AvailabilityEventsService } from './availability.events.service';
 
-// ✅ Import REAL del módulo Turno
 import { TurnoModule } from '../turno/turno.module';
-
-// ✅ IMPORT CLAVE QUE TE FALTABA
 import { AuthModule } from '../auth/auth.module';
 
 @Module({
@@ -26,8 +23,8 @@ import { AuthModule } from '../auth/auth.module';
 
     forwardRef(() => TurnoModule),
 
-    // ✅ SIN ESTO, EL GUARD NO FUNCIONA EN ESTE MÓDULO
-    AuthModule,
+    // ✅ ESTO ES LO CORRECTO
+    forwardRef(() => AuthModule),
   ],
 
   controllers: [AvailabilityController],

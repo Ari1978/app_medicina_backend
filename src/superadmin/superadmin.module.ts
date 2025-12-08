@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { MongooseModule } from '@nestjs/mongoose';
 import { ConfigModule, ConfigService } from '@nestjs/config';
@@ -18,18 +18,21 @@ import {
 } from '../empresa/schemas/empresaPrecargada.schema';
 import { Empresa, EmpresaSchema } from '../empresa/schemas/empresa.schema';
 
-// ✅ Módulos externos
+// ✅ Módulos externos (CON forwardRef)
 import { SedeModule } from '../sedes/sede.module';
 import { EmpresaModule } from '../empresa/empresa.module';
-import { PerfilExamenModule } from '../perfil-examen/perfil-examen.module'; // ✅ ESTE ERA EL CLAVE
+import { PerfilExamenModule } from '../perfil-examen/perfil-examen.module';
+import { AuthModule } from '../auth/auth.module';
 
 @Module({
   imports: [
     ConfigModule,
 
-    EmpresaModule,
-    SedeModule,
-    PerfilExamenModule, // ✅ SOLUCIONA EL ERROR DE PerfilExamenModel
+    // ✅ TODOS con forwardRef para romper ciclos
+    forwardRef(() => AuthModule),
+    forwardRef(() => EmpresaModule),
+    forwardRef(() => SedeModule),
+    forwardRef(() => PerfilExamenModule),
 
     JwtModule.registerAsync({
       global: true,
