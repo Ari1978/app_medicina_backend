@@ -1,6 +1,7 @@
 import { NestFactory } from "@nestjs/core";
 import { AppModule } from "./app.module";
 import { ValidationPipe } from "@nestjs/common";
+import { CorsOptions } from "@nestjs/common/interfaces/external/cors-options.interface";
 import cookieParser from "cookie-parser";
 
 async function bootstrap() {
@@ -12,8 +13,11 @@ async function bootstrap() {
     "http://localhost:3000,http://localhost:5173,https://app-medicina-frontend-f4o1g81v9-ari1978s-projects.vercel.app"
   ).split(",");
 
-  app.enableCors({
-    origin: (origin, callback) => {
+  const corsOptions: CorsOptions = {
+    origin: (
+      origin: string | undefined,
+      callback: (err: Error | null, allow?: boolean) => void
+    ) => {
       if (!origin || whitelist.includes(origin)) {
         callback(null, true);
       } else {
@@ -22,7 +26,9 @@ async function bootstrap() {
     },
     credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-  });
+  };
+
+  app.enableCors(corsOptions);
 
   // ✅ Cookies
   app.use(cookieParser());
