@@ -17,14 +17,19 @@ export class CreateVisitaDto {
   @IsString()
   direccion: string;
 
+  // ✅ NUEVOS CAMPOS GEO (REEMPLAZAN ZONA)
+  @IsString()
+  provincia: string;
+
+  @IsString()
+  partido: string;
+
   @IsString()
   localidad: string;
 
+  @IsOptional()
   @IsString()
-  zona: string; // <-- NUEVO CAMPO
-
-  @IsString()
-  motivo: string;
+  motivo?: string;
 
   @IsString()
   solicitanteNombre: string;
