@@ -11,14 +11,24 @@ export function signEmpresaToken(payload: any) {
 }
 
 export function setEmpresaCookie(res: Response, token: string) {
+  const isProd = process.env.NODE_ENV === 'production';
+
   res.cookie('asmel_empresa_token', token, {
     httpOnly: true,
-    secure: false,
-    sameSite: 'lax',
+    secure: isProd,                    // ✅ TRUE en producción
+    sameSite: isProd ? 'none' : 'lax', // ✅ NONE para Vercel → Render
+    path: '/',                         // ✅ OBLIGATORIO
     maxAge: 7 * 24 * 60 * 60 * 1000,
   });
 }
 
 export function clearEmpresaCookie(res: Response) {
-  res.clearCookie('asmel_empresa_token');
+  const isProd = process.env.NODE_ENV === 'production';
+
+  res.clearCookie('asmel_empresa_token', {
+    httpOnly: true,
+    secure: isProd,
+    sameSite: isProd ? 'none' : 'lax',
+    path: '/',
+  });
 }
