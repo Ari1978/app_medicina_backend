@@ -11,7 +11,7 @@ async function bootstrap() {
   const whitelist = [
     'http://localhost:3000',
     'http://localhost:5173',
-    process.env.FRONTEND_URL,
+    'https://app-medicina-frontend-8fqbj0r1b-ari1978s-projects.vercel.app',
   ].filter(Boolean) as string[];
 
   const corsOptionsDelegate: CorsOptionsDelegate = (
