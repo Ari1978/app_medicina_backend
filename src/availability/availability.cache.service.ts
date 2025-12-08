@@ -3,13 +3,20 @@ import Redis from 'ioredis';
 
 @Injectable()
 export class AvailabilityCacheService implements OnModuleInit {
-  private redis!: Redis;
+  private redis: Redis | null = null;
   private readonly logger = new Logger(AvailabilityCacheService.name);
 
   onModuleInit() {
-    const redisUrl = process.env.REDIS_URL || 'redis://127.0.0.1:6379';
+    const redisUrl = process.env.REDIS_URL;
+
+    // ✅ Si no hay REDIS_URL, no intenta conectarse
+    if (!redisUrl) {
+      this.logger.warn('⚠️ REDIS_URL no definida. Cache desactivada.');
+      return;
+    }
 
     this.redis = new Redis(redisUrl, {
+      tls: {}, // ✅ obligatorio para rediss:// (Upstash)
       maxRetriesPerRequest: null,
       enableReadyCheck: false,
       retryStrategy(times) {
@@ -31,6 +38,8 @@ export class AvailabilityCacheService implements OnModuleInit {
   }
 
   async get(key: string) {
+    if (!this.redis) return null;
+
     try {
       const value = await this.redis.get(key);
       return value ? JSON.parse(value) : null;
@@ -45,6 +54,8 @@ export class AvailabilityCacheService implements OnModuleInit {
   }
 
   async set(key: string, value: any, ttl = 60) {
+    if (!this.redis) return;
+
     try {
       await this.redis.set(key, JSON.stringify(value), 'EX', ttl);
     } catch (err: unknown) {
@@ -57,6 +68,8 @@ export class AvailabilityCacheService implements OnModuleInit {
   }
 
   async del(key: string) {
+    if (!this.redis) return;
+
     try {
       await this.redis.del(key);
     } catch (err: unknown) {
@@ -68,4 +81,3 @@ export class AvailabilityCacheService implements OnModuleInit {
     }
   }
 }
-

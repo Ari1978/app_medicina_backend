@@ -5,34 +5,36 @@ import Redis from 'ioredis';
 export class AvailabilityEventsService implements OnModuleInit {
   private readonly logger = new Logger(AvailabilityEventsService.name);
 
-  private pub!: Redis;
-  private sub!: Redis;
+  private pub: Redis | null = null;
+  private sub: Redis | null = null;
 
   onModuleInit() {
-    const redisUrl = process.env.REDIS_URL || 'redis://127.0.0.1:6379';
+    const redisUrl = process.env.REDIS_URL;
 
-    this.pub = new Redis(redisUrl, {
+    // ✅ Si no hay REDIS_URL, NO intenta conectarse
+    if (!redisUrl) {
+      this.logger.warn('⚠️ REDIS_URL no definida. Eventos en tiempo real desactivados.');
+      return;
+    }
+
+    const redisOptions = {
+      tls: {}, // ✅ OBLIGATORIO para rediss:// (Upstash)
       maxRetriesPerRequest: null,
       enableReadyCheck: false,
-      retryStrategy(times) {
+      retryStrategy(times: number) {
         return Math.min(times * 500, 5000);
       },
-    });
+    };
 
-    this.sub = new Redis(redisUrl, {
-      maxRetriesPerRequest: null,
-      enableReadyCheck: false,
-      retryStrategy(times) {
-        return Math.min(times * 500, 5000);
-      },
-    });
+    this.pub = new Redis(redisUrl, redisOptions);
+    this.sub = new Redis(redisUrl, redisOptions);
 
     this.pub.on('connect', () => {
-      this.logger.log('✅ Redis PUB conectado');
+      this.logger.log('✅ Redis PUB conectado correctamente');
     });
 
     this.sub.on('connect', () => {
-      this.logger.log('✅ Redis SUB conectado');
+      this.logger.log('✅ Redis SUB conectado correctamente');
     });
 
     this.pub.on('error', (err: unknown) => {
@@ -51,10 +53,19 @@ export class AvailabilityEventsService implements OnModuleInit {
       }
     });
 
-    this.sub.subscribe('turno.updated');
+    // ✅ Se suscribe solo si Redis existe
+    this.sub.subscribe('turno.updated', (err) => {
+      if (err) {
+        this.logger.error('❌ Error al suscribirse a turno.updated');
+      } else {
+        this.logger.log('📡 Suscripto al canal turno.updated');
+      }
+    });
   }
 
   publishTurnoUpdate(empresaId: string, fecha: string) {
+    if (!this.pub) return;
+
     try {
       this.pub.publish(
         'turno.updated',
@@ -70,6 +81,8 @@ export class AvailabilityEventsService implements OnModuleInit {
   }
 
   subscribe(callback: (data: { empresaId: string; fecha: string }) => void) {
+    if (!this.sub) return;
+
     this.sub.on('message', (_channel: string, message: string) => {
       try {
         const data = JSON.parse(message);
