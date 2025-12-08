@@ -1,28 +1,36 @@
-import { NestFactory } from '@nestjs/core';
-import { AppModule } from './app.module';
-import { ValidationPipe } from '@nestjs/common';
-import cookieParser from 'cookie-parser';
+import { NestFactory } from "@nestjs/core";
+import { AppModule } from "./app.module";
+import { ValidationPipe } from "@nestjs/common";
+import cookieParser from "cookie-parser";
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  // FRONTEND_URL puede contener múltiples orígenes separados por coma
-  const whitelist = (process.env.FRONTEND_URL || "http://localhost:5173,http://localhost:3001,http://localhost:3000")
-    .split(",");
+  // ✅ CORS PARA LOCAL + PRODUCCIÓN (VERCEL)
+  const whitelist = (
+    process.env.FRONTEND_URL ||
+    "http://localhost:3000,http://localhost:5173,https://app-medicina-frontend-f4o1g81v9-ari1978s-projects.vercel.app"
+  ).split(",");
 
   app.enableCors({
-    origin: whitelist,
+    origin: (origin, callback) => {
+      if (!origin || whitelist.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error("CORS bloqueado"));
+      }
+    },
     credentials: true,
-    methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
   });
 
-  // Cookies
+  // ✅ Cookies
   app.use(cookieParser());
 
-  // Prefijo global
+  // ✅ Prefijo global
   app.setGlobalPrefix("api");
 
-  // Validaciones DTO
+  // ✅ Validaciones DTO
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
