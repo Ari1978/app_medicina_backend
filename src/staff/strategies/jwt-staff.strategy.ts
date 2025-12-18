@@ -11,13 +11,17 @@ export class JwtStaffStrategy extends PassportStrategy(Strategy, 'staff-jwt') {
       jwtFromRequest: ExtractJwt.fromExtractors([
         (req: Request) => req.cookies?.asmel_staff_token ?? null,
       ]),
-      passReqToCallback: false,
       ignoreExpiration: false,
       secretOrKey: config.get<string>('JWT_SECRET') || 'fallback_key',
     });
   }
 
   async validate(payload: any) {
-    return payload; // { id, role, username }
+    return {
+      id: payload.id,
+      username: payload.username,
+      role: payload.role,
+      permisos: payload.permisos || [], // ✅ CLAVE ABSOLUTA
+    };
   }
 }

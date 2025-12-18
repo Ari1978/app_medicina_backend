@@ -1,4 +1,3 @@
-// src/turno/turno.controller.ts
 import {
   Controller,
   Post,
@@ -11,12 +10,20 @@ import {
   Res,
 } from '@nestjs/common';
 
+import {
+  ApiTags,
+  ApiOperation,
+  ApiParam,
+  ApiBody,
+} from '@nestjs/swagger';
+
 import { TurnoService } from './turno.service';
 import { JwtEmpresaGuard } from '../auth/guards/jwt-empresa.guard';
 import { Request, Response } from 'express';
 import { CreateTurnoDto } from './dto/create-turno.dto';
 import { TurnoPdfService } from './turno-pdf.service';
 
+@ApiTags('Empresa - Turnos')
 @Controller('empresa/turnos')
 export class TurnoController {
   constructor(
@@ -24,6 +31,12 @@ export class TurnoController {
     private readonly turnoPdfService: TurnoPdfService,
   ) {}
 
+  // ===============================
+  // CREAR TURNO
+  // ===============================
+  @ApiOperation({
+    summary: 'Crear un turno',
+  })
   @UseGuards(JwtEmpresaGuard)
   @Post()
   crear(@Req() req: Request, @Body() dto: CreateTurnoDto) {
@@ -31,6 +44,12 @@ export class TurnoController {
     return this.turnoService.crearTurno(empresa.id, dto);
   }
 
+  // ===============================
+  // LISTAR TODOS
+  // ===============================
+  @ApiOperation({
+    summary: 'Listar todos los turnos de la empresa',
+  })
   @UseGuards(JwtEmpresaGuard)
   @Get()
   listarTodos(@Req() req: Request) {
@@ -38,6 +57,17 @@ export class TurnoController {
     return this.turnoService.listarTodos(empresa.id);
   }
 
+  // ===============================
+  // LISTAR POR FECHA
+  // ===============================
+  @ApiOperation({
+    summary: 'Listar turnos de la empresa por fecha',
+  })
+  @ApiParam({
+    name: 'fecha',
+    example: '2025-01-31',
+    description: 'Fecha en formato YYYY-MM-DD',
+  })
   @UseGuards(JwtEmpresaGuard)
   @Get(':fecha')
   listarPorFecha(@Req() req: Request, @Param('fecha') fecha: string) {
@@ -45,6 +75,16 @@ export class TurnoController {
     return this.turnoService.listarPorDia(empresa.id, fecha);
   }
 
+  // ===============================
+  // CANCELAR TURNO
+  // ===============================
+  @ApiOperation({
+    summary: 'Cancelar un turno',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'ID del turno',
+  })
   @UseGuards(JwtEmpresaGuard)
   @Patch(':id/cancelar')
   cancelar(@Req() req: Request, @Param('id') id: string) {
@@ -52,6 +92,16 @@ export class TurnoController {
     return this.turnoService.cancelarTurno(empresa.id, id);
   }
 
+  // ===============================
+  // CONFIRMAR TURNO
+  // ===============================
+  @ApiOperation({
+    summary: 'Confirmar un turno',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'ID del turno',
+  })
   @UseGuards(JwtEmpresaGuard)
   @Patch(':id/confirmar')
   confirmar(@Req() req: Request, @Param('id') id: string) {
@@ -59,7 +109,16 @@ export class TurnoController {
     return this.turnoService.confirmarTurno(empresa.id, id);
   }
 
-  // 📄 DESCARGA DE PDF DEL TURNO
+  // ===============================
+  // DESCARGAR PDF DEL TURNO
+  // ===============================
+  @ApiOperation({
+    summary: 'Descargar PDF del turno',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'ID del turno',
+  })
   @UseGuards(JwtEmpresaGuard)
   @Get(':id/pdf')
   async descargarPdf(@Param('id') id: string, @Res() res: Response) {
@@ -71,5 +130,21 @@ export class TurnoController {
     });
 
     res.end(pdf);
+  }
+
+  // ===============================
+  // VER RESULTADOS DEL TURNO
+  // ===============================
+  @ApiOperation({
+    summary: 'Ver resultados del turno',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'ID del turno',
+  })
+  @UseGuards(JwtEmpresaGuard)
+  @Get(':id/resultados')
+  verResultados(@Param('id') id: string) {
+    return this.turnoService.buscarPorId(id);
   }
 }

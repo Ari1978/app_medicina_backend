@@ -1,4 +1,4 @@
-
+// src/recepcion/recepcion.controller.ts
 import {
   Controller,
   Get,
@@ -6,52 +6,54 @@ import {
   Param,
   Body,
   Query,
+  UseGuards,
 } from '@nestjs/common';
-
+import { JwtStaffGuard } from '../../auth/guards/staff-jwt.guard';
 import { RecepcionService } from './recepcion.service';
 
+@UseGuards(JwtStaffGuard)
 @Controller('recepcion')
 export class RecepcionController {
   constructor(private readonly recepcionService: RecepcionService) {}
 
-  // ----------------------------------------
-  // ✅ TURNOS DEL DÍA
-  // ----------------------------------------
+  // =========================
+  // TURNOS DE HOY
+  // =========================
   @Get('turnos-hoy')
   turnosDeHoy() {
     return this.recepcionService.turnosDeHoy();
   }
 
-  // ----------------------------------------
-  // ✅ BUSCADOR (nombre, dni, empresa)
-  // ----------------------------------------
+  // =========================
+  // TURNOS POR FECHA
+  // =========================
+  @Get('turnos')
+  turnosPorFecha(@Query('fecha') fecha: string) {
+    return this.recepcionService.listarPorFechaGlobal(fecha);
+  }
+
+  // =========================
+  // BUSCADOR
+  // =========================
   @Get('buscar')
   buscar(@Query('query') query: string) {
     return this.recepcionService.buscar(query);
   }
 
-  // ----------------------------------------
-  // ✅ CONFIRMAR TURNO (habilita impresión)
-  // ----------------------------------------
-  @Patch('turnos/:id/confirmar')
-  confirmar(@Param('id') id: string) {
-    return this.recepcionService.confirmarTurno(id);
-  }
-
-  // ----------------------------------------
-  // ✅ CAMBIAR ESTADO GENÉRICO
-  // ----------------------------------------
+  // =========================
+  // CAMBIAR ESTADO (confirmado / ausente)
+  // =========================
   @Patch('turnos/:id/estado')
   cambiarEstado(
     @Param('id') id: string,
-    @Body() body: { estado: string },
+    @Body('estado') estado: 'confirmado' | 'ausente',
   ) {
-    return this.recepcionService.cambiarEstado(id, body.estado);
+    return this.recepcionService.cambiarEstadoRecepcion(id, estado);
   }
 
-  // ----------------------------------------
-  // ✅ DATOS PARA IMPRESIÓN (solo confirmados)
-  // ----------------------------------------
+  // =========================
+  // DATOS PARA IMPRESIÓN
+  // =========================
   @Get('turnos/:id/imprimir')
   imprimir(@Param('id') id: string) {
     return this.recepcionService.datosParaImpresion(id);

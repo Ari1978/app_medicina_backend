@@ -1,3 +1,4 @@
+// src/superadmin/superadmin.service.ts
 import {
   Injectable,
   UnauthorizedException,
@@ -18,6 +19,7 @@ import { Localidad } from '../zona-geografica/schemas/localidad.schema';
 import { PerfilExamen } from '../perfil-examen/schemas/perfil-examen.schema';
 
 import { EmpresaService } from '../empresa/empresa.service';
+import { logger } from '../logger/winston.logger';
 
 @Injectable()
 export class SuperAdminService {
@@ -45,38 +47,87 @@ export class SuperAdminService {
   ) {}
 
   // ============================================================
-  // ✅ LOGIN SUPERADMIN
+  // LOGIN SUPERADMIN
   // ============================================================
   async login(username: string, password: string) {
-    const superAdmin = await this.adminModel.findOne({
-      username,
-      role: 'superadmin',
-    });
+    try {
+      const superAdmin = await this.adminModel.findOne({
+        username,
+        role: 'superadmin',
+      });
 
-    if (!superAdmin) throw new UnauthorizedException('Credenciales inválidas');
+      if (!superAdmin) {
+        logger.warn(
+          `Login superadmin falló (no existe) | username=${username}`,
+          { context: 'SuperAdminService' },
+        );
+        throw new UnauthorizedException('Credenciales inválidas');
+      }
 
-    const ok = await bcrypt.compare(password, superAdmin.password);
-    if (!ok) throw new UnauthorizedException('Contraseña incorrecta');
+      const ok = await bcrypt.compare(password, superAdmin.password);
+      if (!ok) {
+        logger.warn(
+          `Login superadmin falló (password incorrecto) | username=${username}`,
+          { context: 'SuperAdminService' },
+        );
+        throw new UnauthorizedException('Contraseña incorrecta');
+      }
 
-    const token = this.jwt.sign({
-      id: superAdmin._id,
-      role: 'superadmin',
-    });
+      const token = this.jwt.sign({
+        id: superAdmin._id,
+        role: 'superadmin',
+      });
 
-    return { superAdmin, token };
+      logger.info(
+        `Login superadmin exitoso | id=${superAdmin._id}`,
+        { context: 'SuperAdminService' },
+      );
+
+      return { superAdmin, token };
+    } catch (error) {
+      const err =
+        error instanceof Error ? error : new Error('Error desconocido');
+
+      logger.error(
+        `Error en login superadmin | username=${username} | ${err.message}`,
+        { context: 'SuperAdminService' },
+      );
+
+      throw err;
+    }
   }
 
   // ============================================================
-  // ✅ ADMIN CRUD
+  // ADMIN CRUD
   // ============================================================
   async crearAdmin(username: string, password: string) {
-    const hashed = await bcrypt.hash(password, 10);
-    return this.adminModel.create({
-      username,
-      password: hashed,
-      role: 'admin',
-      permisos: [],
-    });
+    try {
+      const hashed = await bcrypt.hash(password, 10);
+
+      const admin = await this.adminModel.create({
+        username,
+        password: hashed,
+        role: 'admin',
+        permisos: [],
+      });
+
+      logger.info(
+        `Admin creado por superadmin | id=${admin._id}`,
+        { context: 'SuperAdminService' },
+      );
+
+      return admin;
+    } catch (error) {
+      const err =
+        error instanceof Error ? error : new Error('Error desconocido');
+
+      logger.error(
+        `Error al crear admin | username=${username} | ${err.message}`,
+        { context: 'SuperAdminService' },
+      );
+
+      throw err;
+    }
   }
 
   listarAdmins() {
@@ -84,32 +135,87 @@ export class SuperAdminService {
   }
 
   async editarAdmin(id: string, data: { username?: string; password?: string }) {
-    const updateData: any = {};
-    if (data.username) updateData.username = data.username;
-    if (data.password) updateData.password = await bcrypt.hash(data.password, 10);
+    try {
+      const updateData: any = {};
+      if (data.username) updateData.username = data.username;
+      if (data.password) {
+        updateData.password = await bcrypt.hash(data.password, 10);
+      }
 
-    const admin = await this.adminModel.findByIdAndUpdate(id, updateData, {
-      new: true,
-    });
+      const admin = await this.adminModel.findByIdAndUpdate(id, updateData, {
+        new: true,
+      });
 
-    if (!admin) throw new NotFoundException('Admin no encontrado');
-    return { message: 'Admin actualizado correctamente', admin };
+      if (!admin) throw new NotFoundException('Admin no encontrado');
+
+      logger.info(
+        `Admin editado | id=${id}`,
+        { context: 'SuperAdminService' },
+      );
+
+      return { message: 'Admin actualizado correctamente', admin };
+    } catch (error) {
+      const err =
+        error instanceof Error ? error : new Error('Error desconocido');
+
+      logger.error(
+        `Error al editar admin | id=${id} | ${err.message}`,
+        { context: 'SuperAdminService' },
+      );
+
+      throw err;
+    }
   }
 
   async resetAdminPassword(id: string, password: string) {
-    const admin = await this.adminModel.findById(id);
-    if (!admin) throw new NotFoundException('Admin no encontrado');
+    try {
+      const admin = await this.adminModel.findById(id);
+      if (!admin) throw new NotFoundException('Admin no encontrado');
 
-    admin.password = await bcrypt.hash(password, 10);
-    await admin.save();
+      admin.password = await bcrypt.hash(password, 10);
+      await admin.save();
 
-    return { message: 'Contraseña reseteada correctamente' };
+      logger.info(
+        `Password admin reseteado | id=${id}`,
+        { context: 'SuperAdminService' },
+      );
+
+      return { message: 'Contraseña reseteada correctamente' };
+    } catch (error) {
+      const err =
+        error instanceof Error ? error : new Error('Error desconocido');
+
+      logger.error(
+        `Error al resetear password admin | id=${id} | ${err.message}`,
+        { context: 'SuperAdminService' },
+      );
+
+      throw err;
+    }
   }
 
   async eliminarAdmin(id: string) {
-    const deleted = await this.adminModel.findByIdAndDelete(id);
-    if (!deleted) throw new NotFoundException('Admin no encontrado');
-    return { message: 'Admin eliminado' };
+    try {
+      const deleted = await this.adminModel.findByIdAndDelete(id);
+      if (!deleted) throw new NotFoundException('Admin no encontrado');
+
+      logger.info(
+        `Admin eliminado | id=${id}`,
+        { context: 'SuperAdminService' },
+      );
+
+      return { message: 'Admin eliminado' };
+    } catch (error) {
+      const err =
+        error instanceof Error ? error : new Error('Error desconocido');
+
+      logger.error(
+        `Error al eliminar admin | id=${id} | ${err.message}`,
+        { context: 'SuperAdminService' },
+      );
+
+      throw err;
+    }
   }
 
   permisosAdmin(id: string, permisos: string[]) {
@@ -117,15 +223,35 @@ export class SuperAdminService {
   }
 
   // ============================================================
-  // ✅ STAFF CRUD
+  // STAFF CRUD
   // ============================================================
   async crearStaff(username: string, password: string) {
-    const hashed = await bcrypt.hash(password, 10);
-    return this.staffModel.create({
-      username,
-      password: hashed,
-      permisos: [],
-    });
+    try {
+      const hashed = await bcrypt.hash(password, 10);
+
+      const staff = await this.staffModel.create({
+        username,
+        password: hashed,
+        permisos: [],
+      });
+
+      logger.info(
+        `Staff creado por superadmin | id=${staff._id}`,
+        { context: 'SuperAdminService' },
+      );
+
+      return staff;
+    } catch (error) {
+      const err =
+        error instanceof Error ? error : new Error('Error desconocido');
+
+      logger.error(
+        `Error al crear staff | username=${username} | ${err.message}`,
+        { context: 'SuperAdminService' },
+      );
+
+      throw err;
+    }
   }
 
   listarStaff() {
@@ -133,32 +259,87 @@ export class SuperAdminService {
   }
 
   async editarStaff(id: string, data: { username?: string; password?: string }) {
-    const updateData: any = {};
-    if (data.username) updateData.username = data.username;
-    if (data.password) updateData.password = await bcrypt.hash(data.password, 10);
+    try {
+      const updateData: any = {};
+      if (data.username) updateData.username = data.username;
+      if (data.password) {
+        updateData.password = await bcrypt.hash(data.password, 10);
+      }
 
-    const staff = await this.staffModel.findByIdAndUpdate(id, updateData, {
-      new: true,
-    });
+      const staff = await this.staffModel.findByIdAndUpdate(id, updateData, {
+        new: true,
+      });
 
-    if (!staff) throw new NotFoundException('Staff no encontrado');
-    return { message: 'Staff actualizado correctamente', staff };
+      if (!staff) throw new NotFoundException('Staff no encontrado');
+
+      logger.info(
+        `Staff editado | id=${id}`,
+        { context: 'SuperAdminService' },
+      );
+
+      return { message: 'Staff actualizado correctamente', staff };
+    } catch (error) {
+      const err =
+        error instanceof Error ? error : new Error('Error desconocido');
+
+      logger.error(
+        `Error al editar staff | id=${id} | ${err.message}`,
+        { context: 'SuperAdminService' },
+      );
+
+      throw err;
+    }
   }
 
   async resetStaffPassword(id: string, password: string) {
-    const staff = await this.staffModel.findById(id);
-    if (!staff) throw new NotFoundException('Staff no encontrado');
+    try {
+      const staff = await this.staffModel.findById(id);
+      if (!staff) throw new NotFoundException('Staff no encontrado');
 
-    staff.password = await bcrypt.hash(password, 10);
-    await staff.save();
+      staff.password = await bcrypt.hash(password, 10);
+      await staff.save();
 
-    return { message: 'Contraseña reseteada correctamente' };
+      logger.info(
+        `Password staff reseteado | id=${id}`,
+        { context: 'SuperAdminService' },
+      );
+
+      return { message: 'Contraseña reseteada correctamente' };
+    } catch (error) {
+      const err =
+        error instanceof Error ? error : new Error('Error desconocido');
+
+      logger.error(
+        `Error al resetear password staff | id=${id} | ${err.message}`,
+        { context: 'SuperAdminService' },
+      );
+
+      throw err;
+    }
   }
 
   async eliminarStaff(id: string) {
-    const deleted = await this.staffModel.findByIdAndDelete(id);
-    if (!deleted) throw new NotFoundException('Staff no encontrado');
-    return { message: 'Staff eliminado' };
+    try {
+      const deleted = await this.staffModel.findByIdAndDelete(id);
+      if (!deleted) throw new NotFoundException('Staff no encontrado');
+
+      logger.info(
+        `Staff eliminado | id=${id}`,
+        { context: 'SuperAdminService' },
+      );
+
+      return { message: 'Staff eliminado' };
+    } catch (error) {
+      const err =
+        error instanceof Error ? error : new Error('Error desconocido');
+
+      logger.error(
+        `Error al eliminar staff | id=${id} | ${err.message}`,
+        { context: 'SuperAdminService' },
+      );
+
+      throw err;
+    }
   }
 
   permisosStaff(id: string, permisos: string[]) {
@@ -166,7 +347,7 @@ export class SuperAdminService {
   }
 
   // ============================================================
-  // ✅ EMPRESAS PRECARGADAS
+  // EMPRESAS PRECARGADAS
   // ============================================================
   crearEmpresaPrecargada(data: { cuit: string; razonSocial: string }) {
     return this.empresaPrecargadaModel.create({
@@ -181,108 +362,160 @@ export class SuperAdminService {
   }
 
   // ============================================================
-  // ✅ EMPRESAS FINALES
+  // EMPRESAS FINALES
   // ============================================================
   listarEmpresasFinales() {
     return this.empresaFinalModel.find();
   }
 
   async editarEmpresaFinal(id: string, data: any) {
-    const empresa = await this.empresaFinalModel.findByIdAndUpdate(id, data, {
-      new: true,
-    });
+    try {
+      const empresa = await this.empresaFinalModel.findByIdAndUpdate(id, data, {
+        new: true,
+      });
 
-    if (!empresa) throw new NotFoundException('Empresa no encontrada');
-    return { message: 'Empresa actualizada', empresa };
+      if (!empresa) throw new NotFoundException('Empresa no encontrada');
+
+      logger.info(
+        `Empresa final editada | id=${id}`,
+        { context: 'SuperAdminService' },
+      );
+
+      return { message: 'Empresa actualizada', empresa };
+    } catch (error) {
+      const err =
+        error instanceof Error ? error : new Error('Error desconocido');
+
+      logger.error(
+        `Error al editar empresa final | id=${id} | ${err.message}`,
+        { context: 'SuperAdminService' },
+      );
+
+      throw err;
+    }
   }
 
   async resetPasswordEmpresaFinal(id: string, password: string) {
-    const empresa = await this.empresaFinalModel.findById(id);
-    if (!empresa) throw new NotFoundException('Empresa no encontrada');
+    try {
+      const empresa = await this.empresaFinalModel.findById(id);
+      if (!empresa) throw new NotFoundException('Empresa no encontrada');
 
-    empresa.password = await bcrypt.hash(password, 10);
-    await empresa.save();
+      empresa.password = await bcrypt.hash(password, 10);
+      await empresa.save();
 
-    return { message: 'Contraseña reseteada correctamente' };
+      logger.info(
+        `Password empresa reseteado | id=${id}`,
+        { context: 'SuperAdminService' },
+      );
+
+      return { message: 'Contraseña reseteada correctamente' };
+    } catch (error) {
+      const err =
+        error instanceof Error ? error : new Error('Error desconocido');
+
+      logger.error(
+        `Error al resetear password empresa | id=${id} | ${err.message}`,
+        { context: 'SuperAdminService' },
+      );
+
+      throw err;
+    }
   }
 
   async eliminarEmpresaFinal(id: string) {
-    const empresa = await this.empresaFinalModel.findByIdAndDelete(id);
-    if (!empresa) throw new NotFoundException('Empresa no encontrada');
-    return { message: 'Empresa eliminada' };
+    try {
+      const empresa = await this.empresaFinalModel.findByIdAndDelete(id);
+      if (!empresa) throw new NotFoundException('Empresa no encontrada');
+
+      logger.info(
+        `Empresa final eliminada | id=${id}`,
+        { context: 'SuperAdminService' },
+      );
+
+      return { message: 'Empresa eliminada' };
+    } catch (error) {
+      const err =
+        error instanceof Error ? error : new Error('Error desconocido');
+
+      logger.error(
+        `Error al eliminar empresa final | id=${id} | ${err.message}`,
+        { context: 'SuperAdminService' },
+      );
+
+      throw err;
+    }
   }
 
   // ============================================================
-  // ✅ IMPORTAR EMPRESAS EXCEL
+  // IMPORTAR EMPRESAS EXCEL
   // ============================================================
- async importarEmpresas(file: Express.Multer.File) {
-  if (!file) throw new BadRequestException('Archivo requerido');
+  async importarEmpresas(file: Express.Multer.File) {
+    try {
+      if (!file) throw new BadRequestException('Archivo requerido');
 
-  console.log('📦 Archivo recibido:', file.originalname);
+      logger.info(
+        `Archivo Excel recibido | name=${file.originalname}`,
+        { context: 'SuperAdminService' },
+      );
 
-  const workbook = XLSX.read(file.buffer, { type: 'buffer' });
-  const sheet = workbook.Sheets[workbook.SheetNames[0]];
-  const rows = XLSX.utils.sheet_to_json(sheet);
+      const workbook = XLSX.read(file.buffer, { type: 'buffer' });
+      const sheet = workbook.Sheets[workbook.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(sheet);
 
-  console.log('📊 Filas leídas del Excel:', rows.length);
-  console.log('🧾 Primer fila:', rows[0]);
+      let insertadas = 0;
+      let omitidas = 0;
 
-  let insertadas = 0;
-  let omitidas = 0;
+      for (const row of rows as any[]) {
+        const cuit = String(row['cuit '] || row.cuit || '').trim();
+        const razonSocial = String(row.razonSocial || '').trim();
+        const email1 = String(row.email || row.email1 || '').trim();
 
-  for (const row of rows as any[]) {
-  console.log('➡️ Procesando fila:', row);
+        if (!cuit || !razonSocial || !email1) {
+          omitidas++;
+          continue;
+        }
 
-  // ✅ CORRECCIÓN REAL DE NOMBRES
-  const cuit = String(row['cuit '] || row.cuit || '').trim();
-  const razonSocial = String(row.razonSocial || '').trim();
-  const email1 = String(row.email || row.email1 || '').trim();
+        const existe = await this.empresaService.findByCuit(cuit);
+        if (existe) {
+          omitidas++;
+          continue;
+        }
 
-  console.log('🔎 Datos parseados CORRECTOS:', { cuit, razonSocial, email1 });
+        await this.empresaService.createFromImport({
+          cuit,
+          razonSocial,
+          email1,
+        });
 
-  if (!cuit || !razonSocial || !email1) {
-    console.warn('⚠️ Fila omitida por campos vacíos');
-    omitidas++;
-    continue;
+        insertadas++;
+      }
+
+      logger.info(
+        `Importación Excel finalizada | insertadas=${insertadas} | omitidas=${omitidas}`,
+        { context: 'SuperAdminService' },
+      );
+
+      return {
+        message: 'Importación finalizada correctamente',
+        insertadas,
+        omitidas,
+        total: rows.length,
+      };
+    } catch (error) {
+      const err =
+        error instanceof Error ? error : new Error('Error desconocido');
+
+      logger.error(
+        `Error en importación Excel | ${err.message}`,
+        { context: 'SuperAdminService' },
+      );
+
+      throw err;
+    }
   }
 
-  const existe = await this.empresaService.findByCuit(cuit);
-
-  if (existe) {
-    console.warn('⛔ CUIT ya existe en BD:', cuit);
-    omitidas++;
-    continue;
-  }
-
-  console.log('✅ Insertando empresa:', cuit);
-
-  await this.empresaService.createFromImport({
-    cuit,
-    razonSocial,
-    email1,
-  });
-
-  insertadas++;
-}
-
-
-  console.log('✅ RESULTADO FINAL:', {
-    insertadas,
-    omitidas,
-    total: rows.length,
-  });
-
-  return {
-    message: 'Importación finalizada correctamente',
-    insertadas,
-    omitidas,
-    total: rows.length,
-  };
-}
-
-
   // ============================================================
-  // ✅ PERFILES DE EXAMEN POR EMPRESA (SUPERADMIN)
+  // PERFILES DE EXAMEN
   // ============================================================
   crearPerfilExamen(data: {
     empresaId: string;
@@ -316,11 +549,13 @@ export class SuperAdminService {
   }
 
   // ============================================================
-  // ✅ STATS
+  // STATS
   // ============================================================
   async getStats() {
     const empresas = await this.empresaFinalModel.countDocuments();
-    const empresasActivas = await this.empresaFinalModel.countDocuments({ activo: true });
+    const empresasActivas = await this.empresaFinalModel.countDocuments({
+      activo: true,
+    });
     const empresasInactivas = empresas - empresasActivas;
 
     const admins = await this.adminModel.countDocuments({ role: 'admin' });

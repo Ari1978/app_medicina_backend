@@ -6,7 +6,7 @@ import {
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 
-import { PerfilExamen } from './schemas/perfil-examen.schema';
+import { PerfilExamen, PerfilExamenDocument } from './schemas/perfil-examen.schema';
 import { CreatePerfilExamenDto } from './dto/create-perfil-examen.dto';
 import { UpdatePerfilExamenDto } from './dto/update-perfil-examen.dto';
 
@@ -14,7 +14,7 @@ import { UpdatePerfilExamenDto } from './dto/update-perfil-examen.dto';
 export class PerfilExamenService {
   constructor(
     @InjectModel(PerfilExamen.name)
-    private readonly perfilModel: Model<PerfilExamen>,
+    private readonly perfilModel: Model<PerfilExamenDocument>,
   ) {}
 
   // ========================================
@@ -22,31 +22,43 @@ export class PerfilExamenService {
   // ========================================
   async create(data: CreatePerfilExamenDto) {
     try {
-      return await this.perfilModel.create({
-        nombre: data.puesto,      // ✅ se guarda como nombre
+      const perfil = await this.perfilModel.create({
+        puesto: data.puesto,          // ✅ UNIFICADO
         estudios: data.estudios,
         empresa: data.empresaId,
+        activo: true,
       });
+
+      return perfil;
     } catch (error: any) {
+      console.error('ERROR CREANDO PERFIL:', error);
+
+      // ✅ DUPLICADO (empresa + puesto)
       if (error?.code === 11000) {
         throw new BadRequestException(
           'Ya existe un perfil con ese puesto para esta empresa',
         );
       }
 
-      throw error;
+      // ✅ VALIDACIÓN MONGOOSE
+      if (error?.name === 'ValidationError') {
+        throw new BadRequestException('Datos inválidos para crear el perfil');
+      }
+
+      throw new BadRequestException('No se pudo crear el perfil');
     }
   }
 
   // ========================================
-  // ✅ LISTAR TODOS (SOLO DEBUG/SUPERADMIN)
+  // ✅ LISTAR TODOS (DEBUG / SUPERADMIN)
   // ========================================
   async findAll() {
-    return this.perfilModel
-      .find()
-      .populate('empresa', 'razonSocial')
-      .sort({ nombre: 1 });
-  }
+  return this.perfilModel
+    .find()
+    .populate('empresa', 'razonSocial numeroCliente') // ⬅️ ACA ESTÁ LA SOLUCIÓN
+    .sort({ puesto: 1 });
+}
+
 
   // ========================================
   // ✅ LISTAR PERFILES POR EMPRESA
@@ -54,7 +66,7 @@ export class PerfilExamenService {
   async getByEmpresa(empresaId: string) {
     return this.perfilModel
       .find({ empresa: empresaId })
-      .sort({ nombre: 1 });
+      .sort({ puesto: 1 });
   }
 
   // ========================================
@@ -63,7 +75,7 @@ export class PerfilExamenService {
   async getByPuesto(empresaId: string, puesto: string) {
     const perfil = await this.perfilModel.findOne({
       empresa: empresaId,
-      nombre: puesto,
+      puesto,
       activo: true,
     });
 
@@ -92,12 +104,27 @@ export class PerfilExamenService {
   }
 
   // ========================================
-  // ✅ EDITAR PERFIL
-  // ========================================
-  async update(id: string, data: UpdatePerfilExamenDto) {
+// ✅ EDITAR PERFIL (LIMPIANDO _id DE ESTUDIOS)
+// ========================================
+async update(id: string, data: UpdatePerfilExamenDto) {
+  try {
+    // 🔥 LIMPIAR _id DE LOS ESTUDIOS PARA EVITAR ERROR 400
+    const estudiosLimpios = data.estudios
+      ? data.estudios.map(e => ({
+          nombre: e.nombre,
+          sector: e.sector,
+        }))
+      : undefined;
+
+    const updateData = {
+      puesto: data.puesto,
+      activo: data.activo,
+      ...(estudiosLimpios && { estudios: estudiosLimpios }),
+    };
+
     const perfil = await this.perfilModel.findByIdAndUpdate(
       id,
-      data,
+      updateData,
       { new: true },
     );
 
@@ -106,10 +133,23 @@ export class PerfilExamenService {
     }
 
     return perfil;
+
+  } catch (error: any) {
+    console.error('ERROR ACTUALIZANDO PERFIL:', error);
+
+    if (error?.code === 11000) {
+      throw new BadRequestException(
+        'Ya existe un perfil con ese puesto para esta empresa',
+      );
+    }
+
+    throw new BadRequestException('No se pudo actualizar el perfil');
   }
+}
+
 
   // ========================================
-  // ✅ ELIMINAR PERFIL
+  // ✅ ELIMINAR PERFIL (BORRADO FÍSICO)
   // ========================================
   async delete(id: string) {
     const perfil = await this.perfilModel.findByIdAndDelete(id);
@@ -119,5 +159,22 @@ export class PerfilExamenService {
     }
 
     return { message: 'Perfil eliminado correctamente' };
+  }
+
+  // ========================================
+  // ✅ OPCIONAL: ELIMINADO LÓGICO (DESACTIVAR)
+  // ========================================
+  async desactivar(id: string) {
+    const perfil = await this.perfilModel.findByIdAndUpdate(
+      id,
+      { activo: false },
+      { new: true },
+    );
+
+    if (!perfil) {
+      throw new NotFoundException('Perfil no encontrado');
+    }
+
+    return perfil;
   }
 }

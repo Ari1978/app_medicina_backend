@@ -1,4 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 
@@ -6,127 +10,170 @@ import { Turno, TurnoDocument } from './schema/turno.schema';
 
 import { AvailabilityEventsService } from '../availability/availability.events.service';
 import { AvailabilityService } from '../availability/availability.service';
-import PDFDocument = require("pdfkit");
+
 import * as ExcelJS from 'exceljs';
+
+import { CreateResultadoFinalDto } from './dto/create-resultado-final.dto';
+import { EditResultadoFinalDto } from './dto/edit-resultado-final.dto';
+
+import { logger } from '../logger/winston.logger';
 
 @Injectable()
 export class TurnoService {
   constructor(
     @InjectModel(Turno.name)
     private readonly turnoModel: Model<TurnoDocument>,
-
     private readonly events: AvailabilityEventsService,
     private readonly availabilityService: AvailabilityService,
   ) {}
 
   // ============================================================
-  // ✔ CREAR TURNO
+  // CREAR TURNO (PROVISIONAL)
   // ============================================================
   async crearTurno(empresaId: string, dto: any) {
-    const data: any = {
-      empresa: empresaId,
-      tipo: dto.tipo,
+    try {
+      const data: any = {
+        empresa: empresaId,
+        tipo: dto.tipo,
 
-      empleadoNombre: dto.empleadoNombre,
-      empleadoApellido: dto.empleadoApellido,
-      empleadoDni: dto.empleadoDni,
-      puesto: dto.puesto,
+        empleadoNombre: dto.empleadoNombre,
+        empleadoApellido: dto.empleadoApellido,
+        empleadoDni: dto.empleadoDni,
+        puesto: dto.puesto,
 
-      fecha: dto.fecha,
-      hora: dto.hora,
+        fecha: dto.fecha,
+        hora: dto.hora,
 
-      solicitanteNombre: dto.solicitanteNombre,
-      solicitanteApellido: dto.solicitanteApellido,
-      solicitanteCelular: dto.solicitanteCelular,
+        solicitanteNombre: dto.solicitanteNombre,
+        solicitanteApellido: dto.solicitanteApellido,
+        solicitanteCelular: dto.solicitanteCelular,
 
-      estado: 'provisional',
-    };
+        estado: 'provisional',
+        motivo: dto.motivo,
+      };
 
-    if (dto.tipo === 'examen') {
-      data.motivo = dto.motivo;
-      data.perfilExamen = dto.perfilExamen;
-      data.estudiosAdicionales = dto.estudiosAdicionales ?? [];
-      data.listaEstudios = dto.listaEstudios ?? [];
+      if (dto.tipo === 'examen') {
+        data.perfilExamen = dto.perfilExamen ?? null;
+        data.estudiosAdicionales = dto.estudiosAdicionales ?? [];
+        data.listaEstudios = dto.listaEstudios ?? [];
+      }
+
+      if (dto.tipo === 'estudios') {
+        data.listaEstudios = dto.listaEstudios ?? [];
+      }
+
+      const turno = await this.turnoModel.create(data);
+      await this.availabilityService.bloquearTurno(dto.fecha, dto.hora);
+
+      logger.info(
+        `Turno creado (provisional) | id=${turno._id} | empresa=${empresaId}`,
+        { context: 'TurnoService' },
+      );
+
+      return turno;
+    } catch (error) {
+      const err =
+        error instanceof Error ? error : new Error('Error desconocido');
+
+      logger.error(
+        `Error al crear turno | empresa=${empresaId} | ${err.message}`,
+        { context: 'TurnoService' },
+      );
+
+      throw err;
     }
-
-    if (dto.tipo === 'estudios') {
-      data.motivoEstudio = dto.motivoEstudio;
-      data.listaEstudios = dto.listaEstudios;
-    }
-
-    const turno = await this.turnoModel.create(data);
-
-    await this.availabilityService.bloquearTurno(dto.fecha, dto.hora);
-    this.events.publishTurnoUpdate(empresaId, dto.fecha);
-
-    return turno;
   }
 
   // ============================================================
-  // ✔ LISTAR POR DÍA (EMPRESA)
+  // LISTADOS EMPRESA
   // ============================================================
-  async listarPorDia(empresaId: string, fecha: string) {
+  listarTodos(empresaId: string) {
+    return this.turnoModel
+      .find({ empresa: empresaId })
+      .sort({ fecha: 1, hora: 1 });
+  }
+
+  listarPorDia(empresaId: string, fecha: string) {
     return this.turnoModel
       .find({ empresa: empresaId, fecha })
       .sort({ hora: 1 });
   }
 
   // ============================================================
-  // ✔ LISTAR TODOS (EMPRESA)
-  // ============================================================
-  async listarTodos(empresaId: string) {
-    return this.turnoModel
-      .find({ empresa: empresaId })
-      .sort({ fecha: 1, hora: 1 });
-  }
-
-  // ============================================================
-  // ✔ CANCELAR
+  // ESTADOS
   // ============================================================
   async cancelarTurno(empresaId: string, id: string) {
-    const turno = await this.turnoModel.findOne({ _id: id, empresa: empresaId });
-    if (!turno) throw new Error('Turno no encontrado');
+    const turno = await this.turnoModel.findOne({
+      _id: id,
+      empresa: empresaId,
+    });
+
+    if (!turno) throw new NotFoundException('Turno no encontrado');
 
     turno.estado = 'cancelado';
     await turno.save();
 
-    this.events.publishTurnoUpdate(empresaId, turno.fecha);
+    this.events.publishTurnoUpdate({
+      turnoId: turno._id.toString(),
+      estado: turno.estado,
+    });
+
     return { message: 'Turno cancelado' };
   }
 
-  // ============================================================
-  // ✔ CONFIRMAR
-  // ============================================================
   async confirmarTurno(empresaId: string, id: string) {
-    const turno = await this.turnoModel.findOne({ _id: id, empresa: empresaId });
-    if (!turno) throw new Error('Turno no encontrado');
+    const turno = await this.turnoModel.findOne({
+      _id: id,
+      empresa: empresaId,
+    });
+
+    if (!turno) throw new NotFoundException('Turno no encontrado');
 
     turno.estado = 'confirmado';
     await turno.save();
 
-    this.events.publishTurnoUpdate(empresaId, turno.fecha);
+    this.events.publishTurnoUpdate({
+      turnoId: turno._id.toString(),
+      estado: turno.estado,
+    });
+
     return { message: 'Turno confirmado' };
   }
 
   // ============================================================
-  // ✔ LISTAR EXÁMENES CONFIRMADOS (STAFF)
+  // BÚSQUEDAS
   // ============================================================
-  async listarExamenesConfirmados() {
+  buscarPorId(id: string) {
     return this.turnoModel
-      .find({
-        tipo: 'examen',
-        estado: 'confirmado',
-      })
-      .populate('empresa', 'razonSocial cuit')
+      .findById(id)
+      .populate('empresa', 'razonSocial cuit');
+  }
+
+  listarTurnosConfirmadosPorEmpresa(empresaId: string) {
+    return this.turnoModel
+      .find({ empresa: empresaId, estado: 'confirmado' })
       .sort({ fecha: -1, hora: -1 });
   }
 
+  listarTurnosRealizadosPorEmpresa(empresaId: string) {
+    return this.turnoModel
+      .find({ empresa: empresaId, estado: 'realizado' })
+      .sort({ fecha: -1, hora: -1 });
+  }
+
+  listarPorFechaGlobal(fecha: string) {
+    return this.turnoModel
+      .find({ fecha, estado: { $ne: 'cancelado' } })
+      .populate('empresa', 'razonSocial cuit')
+      .sort({ hora: 1 });
+  }
+
   // ============================================================
-  // ✔ CARGAR PDF
+  // PDF / EXCEL
   // ============================================================
   async cargarPDF(id: string, url: string) {
     const turno = await this.turnoModel.findById(id);
-    if (!turno) throw new Error('Turno no encontrado');
+    if (!turno) throw new NotFoundException('Turno no encontrado');
 
     turno.pdfResultado = url;
     await turno.save();
@@ -134,9 +181,6 @@ export class TurnoService {
     return { message: 'PDF cargado correctamente' };
   }
 
-  // ============================================================
-  // ✔ EXPORTAR EXCEL
-  // ============================================================
   async exportarExcel() {
     const turnos = await this.listarExamenesConfirmados();
 
@@ -152,20 +196,18 @@ export class TurnoService {
       { header: 'Puesto', key: 'puesto', width: 25 },
       { header: 'Fecha', key: 'fecha', width: 15 },
       { header: 'Hora', key: 'hora', width: 10 },
-      { header: 'PDF Resultado', key: 'pdf', width: 50 },
     ];
 
     turnos.forEach((t: any) => {
       ws.addRow({
-        empresa: t.empresa?.razonSocial || '',
-        cuit: t.empresa?.cuit || '',
+        empresa: t.empresa?.razonSocial,
+        cuit: t.empresa?.cuit,
         apellido: t.empleadoApellido,
         nombre: t.empleadoNombre,
         dni: t.empleadoDni,
         puesto: t.puesto,
         fecha: t.fecha,
         hora: t.hora,
-        pdf: t.pdfResultado || 'Pendiente',
       });
     });
 
@@ -173,95 +215,153 @@ export class TurnoService {
   }
 
   // ============================================================
-  // ✔ LISTAR EXÁMENES POR EMPRESA
+  // RESULTADO FINAL
   // ============================================================
-  async listarExamenesPorEmpresa(empresaId: string) {
+  async cargarResultadoFinal(id: string, dto: CreateResultadoFinalDto) {
+    const turno = await this.turnoModel.findById(id);
+    if (!turno) throw new NotFoundException('Turno no encontrado');
+
+    if (turno.estado !== 'confirmado') {
+      throw new BadRequestException(
+        'Solo se pueden cargar resultados en turnos confirmados',
+      );
+    }
+
+    turno.resultadoFinal = {
+      estudios: dto.estudios,
+      aptitud: dto.aptitud,
+      observacionGeneral: dto.observacionGeneral,
+    };
+
+    turno.estado = 'realizado';
+    await turno.save();
+
+    this.events.publishTurnoUpdate({
+      turnoId: turno._id.toString(),
+      estado: turno.estado,
+    });
+
+    return { message: 'Resultado cargado correctamente' };
+  }
+
+  async editarResultadoFinal(id: string, dto: EditResultadoFinalDto) {
+    const turno = await this.turnoModel.findById(id);
+    if (!turno) throw new NotFoundException('Turno no encontrado');
+
+    if (turno.estado !== 'realizado') {
+      throw new BadRequestException(
+        'Solo se pueden editar resultados ya realizados',
+      );
+    }
+
+    if (!turno.resultadoFinal) {
+      throw new BadRequestException(
+        'El turno no tiene resultado final cargado',
+      );
+    }
+
+    if (dto.estudios !== undefined) {
+      turno.resultadoFinal.estudios = dto.estudios;
+    }
+
+    if (dto.aptitud !== undefined) {
+      turno.resultadoFinal.aptitud = dto.aptitud;
+    }
+
+    if (dto.observacionGeneral !== undefined) {
+      turno.resultadoFinal.observacionGeneral = dto.observacionGeneral;
+    }
+
+    await turno.save();
+
+    return { message: 'Resultado actualizado correctamente' };
+  }
+
+  // ============================================================
+  // EXÁMENES
+  // ============================================================
+  listarExamenesConfirmados() {
     return this.turnoModel
-      .find({
-        empresa: empresaId,
-        tipo: 'examen',
-        estado: 'confirmado',
-      })
+      .find({ tipo: 'examen', estado: 'confirmado' })
+      .populate('empresa', 'razonSocial cuit')
       .sort({ fecha: -1, hora: -1 });
   }
 
   // ============================================================
-  // ✔ BUSCAR POR ID
-  // ============================================================
-  async buscarPorId(id: string) {
-    return this.turnoModel
-      .findById(id)
-      .populate('empresa', 'razonSocial cuit');
-  }
-
-  // ============================================================
-  // ✔ CONTAR POR FECHA
-  // ============================================================
-  async contarPorFecha(fecha: string) {
-    return this.turnoModel.countDocuments({ fecha });
-  }
-
-  // ============================================================
-  // ✔ CONTAR POR ESTADO
-  // ============================================================
-  async contarPorEstado(estado: string) {
-    return this.turnoModel.countDocuments({ estado });
-  }
-
-  // ============================================================
-  // ✔ PRÓXIMOS TURNOS (STAFF)
-  // ============================================================
-  async listarProximosTurnos(limit = 5) {
-    const hoy = new Date().toISOString().split("T")[0];
-
-    return this.turnoModel
-      .find({ fecha: { $gte: hoy } })
-      .populate('empresa', 'razonSocial')
-      .sort({ fecha: 1, hora: 1 })
-      .limit(limit);
-  }
-
-  // ============================================================
-  // ✔ DASHBOARD STAFF
+  // MÉTODOS STAFF (RESTAURADOS)
   // ============================================================
   async obtenerDashboardStaff() {
-    const hoy = new Date().toISOString().split("T")[0];
+    const hoy = new Date().toISOString().slice(0, 10);
 
     const totalHoy = await this.contarPorFecha(hoy);
-    const pendientes = await this.contarPorEstado("pendiente");
-    const completados = await this.contarPorEstado("completado");
-
+    const pendientes = await this.contarPorEstado('confirmado');
+    const completados = await this.contarPorEstado('realizado');
     const proximos = await this.listarProximosTurnos(5);
 
-    return {
-      resumen: {
-        totalHoy,
-        pendientes,
-        completados,
-      },
-      proximos,
-    };
+    return { totalHoy, pendientes, completados, proximos };
   }
 
-  // ============================================================
-  // ✔ LISTAR POR FECHA (STAFF) ✅ ESTE ES EL QUE USA TU TABLA
-  // ============================================================
-  async listarPorFechaStaff(fecha: string) {
+  listarPorFechaStaff(fecha: string) {
     return this.turnoModel
-      .find({ fecha })
+      .find({ fecha, estado: { $ne: 'cancelado' } })
       .populate('empresa', 'razonSocial cuit')
       .sort({ hora: 1 });
   }
 
-  // ✅ LISTAR TURNOS GLOBALMENTE POR FECHA (NO por empresa)
-async listarPorFechaGlobal(fecha: string) {
-  return this.turnoModel.find({
-    fecha,
-    estado: { $ne: 'cancelado' },
-  }).lean();
+  obtenerEmpresasConExamenesConfirmados() {
+    return this.turnoModel.aggregate([
+      { $match: { tipo: 'examen', estado: 'confirmado' } },
+      { $group: { _id: '$empresa', cantidad: { $sum: 1 } } },
+      {
+        $lookup: {
+          from: 'empresas',
+          localField: '_id',
+          foreignField: '_id',
+          as: 'empresa',
+        },
+      },
+      { $unwind: '$empresa' },
+      {
+        $project: {
+          _id: '$empresa._id',
+          razonSocial: '$empresa.razonSocial',
+          cantidad: 1,
+        },
+      },
+    ]);
+  }
+
+  listarTurnosRealizados() {
+    return this.turnoModel
+      .find({ estado: 'realizado' })
+      .populate('empresa', 'razonSocial cuit')
+      .sort({ fecha: -1 });
+  }
+
+  contarPorFecha(fecha: string) {
+    return this.turnoModel.countDocuments({ fecha });
+  }
+
+  contarPorEstado(
+    estado: 'provisional' | 'confirmado' | 'realizado' | 'ausente' | 'cancelado',
+  ) {
+    return this.turnoModel.countDocuments({ estado });
+  }
+
+  listarProximosTurnos(limit = 5) {
+    return this.turnoModel
+      .find({ estado: 'confirmado' })
+      .sort({ fecha: 1, hora: 1 })
+      .limit(limit);
+  }
+
+  async actualizarEstudiosStaff(id: string, listaEstudios: any[]) {
+    const turno = await this.turnoModel.findById(id);
+    if (!turno) throw new NotFoundException('Turno no encontrado');
+
+    turno.listaEstudios = listaEstudios;
+    await turno.save();
+
+    return { message: 'Estudios actualizados' };
+  }
 }
-
-}
-
-
- 

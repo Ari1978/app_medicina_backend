@@ -5,8 +5,9 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { StaffController } from './staff.controller';
 import { StaffExamenesController } from './controllers/staff-examenes.controller';
 import { StaffPermisosController } from './controllers/staff-permisos.controller';
+import { StaffTurnosController } from './controllers/staff-turnos.controller';
 
-// Controllers NUEVOS (formularios unificados)
+// Formularios
 import { FormularioStaffController } from '../formularios/formulario-staff.controller';
 
 // Services
@@ -15,24 +16,28 @@ import { StaffExamenesService } from './services/staff-examenes.service';
 
 // Schemas
 import { Staff, StaffSchema } from './schemas/staff.schema';
+import { Turno, TurnoSchema } from '../turno/schema/turno.schema';
 
 // Guards & Strategies
 import { JwtStaffStrategy } from 'src/auth/strategies/jwt-staff.strategy';
 import { StaffPermisoGuard } from '../auth/guards/staff-permiso.guard';
 
-// ❗ ACÁ ESTABA EL PROBLEMA: dependencias circulares
+// Modules
 import { TurnoModule } from 'src/turno/turno.module';
 import { FormularioModule } from '../formularios/formulario.module';
 import { AuthModule } from '../auth/auth.module';
 
+
 @Module({
   imports: [
-    forwardRef(() => TurnoModule),       // ✅ antes estaba directo
-    forwardRef(() => FormularioModule),  // ✅ también es circular
-    forwardRef(() => AuthModule),        // ✅ lo necesitás por guards/strategy
+    forwardRef(() => TurnoModule),
+    forwardRef(() => FormularioModule),
+    forwardRef(() => AuthModule),
 
+    // 👇 ACÁ ESTABA EL BLOQUEANTE
     MongooseModule.forFeature([
       { name: Staff.name, schema: StaffSchema },
+      { name: Turno.name, schema: TurnoSchema },
     ]),
   ],
 
@@ -40,7 +45,8 @@ import { AuthModule } from '../auth/auth.module';
     StaffController,
     StaffExamenesController,
     StaffPermisosController,
-    FormularioStaffController,
+    StaffTurnosController,
+  
   ],
 
   providers: [

@@ -1,13 +1,53 @@
-import { Controller, Post, Body, Res, Get, UseGuards, Req } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Body,
+  Res,
+  Get,
+  UseGuards,
+  Req,
+} from '@nestjs/common';
+
+import {
+  ApiTags,
+  ApiOperation,
+  ApiBody,
+  ApiCookieAuth,
+} from '@nestjs/swagger';
+
 import { AuthService } from './auth.service';
 import { Response, Request } from 'express';
 import { JwtAuthGuard } from './guards/jwt.guard';
 
+@ApiTags('Auth - Empresa')
 @Controller('api/empresa')
 export class AuthController {
   constructor(private authService: AuthService) {}
 
-  // ✅ LOGIN EMPRESA (LOCAL + FLY)
+  // ===============================
+  // LOGIN EMPRESA
+  // ===============================
+  @ApiOperation({
+    summary: 'Login de empresa',
+    description:
+      'Autentica una empresa y setea la cookie asmel_empresa_token',
+  })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        cuit: {
+          type: 'string',
+          example: '20123456789',
+        },
+        password: {
+          type: 'string',
+          example: 'empresa123',
+        },
+      },
+      required: ['cuit', 'password'],
+    },
+  })
   @Post('login')
   async loginEmpresa(
     @Body('cuit') cuit: string,
@@ -21,8 +61,8 @@ export class AuthController {
 
     res.cookie('asmel_empresa_token', token, {
       httpOnly: true,
-      secure: isProd,          // ✅ SOLO TRUE EN PRODUCCIÓN
-      sameSite: isProd ? 'none' : 'lax', // ✅ LOCAL vs FLY
+      secure: isProd, // ✅ solo true en producción
+      sameSite: isProd ? 'none' : 'lax',
       path: '/',
       maxAge: 24 * 60 * 60 * 1000,
     });
@@ -30,14 +70,26 @@ export class AuthController {
     return empresa;
   }
 
-  // ✅ SESIÓN EMPRESA
-  @Get('me')
+  // ===============================
+  // SESIÓN EMPRESA
+  // ===============================
+  @ApiOperation({
+    summary: 'Obtener empresa autenticada',
+  })
+  @ApiCookieAuth('asmel_empresa_token')
   @UseGuards(JwtAuthGuard)
+  @Get('me')
   async me(@Req() req: Request) {
     return req.user;
   }
 
-  // ✅ LOGOUT EMPRESA
+  // ===============================
+  // LOGOUT EMPRESA
+  // ===============================
+  @ApiOperation({
+    summary: 'Logout de empresa',
+    description: 'Elimina la cookie de sesión',
+  })
   @Post('logout')
   async logout(@Res({ passthrough: true }) res: Response) {
     const isProd = process.env.NODE_ENV === 'production';

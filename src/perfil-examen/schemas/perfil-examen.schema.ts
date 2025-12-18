@@ -7,9 +7,9 @@ export type PerfilExamenDocument = PerfilExamen & Document;
 @Schema({ timestamps: true })
 export class PerfilExamen {
 
-  // ✅ ESTE ES EL ÚNICO CAMPO DE NOMBRE
+  // ✅ AHORA SE LLAMA "puesto" EN TODO EL SISTEMA
   @Prop({ required: true })
-  nombre: string;
+  puesto: string;
 
   // ✅ Estudios con sector
   @Prop({
@@ -50,8 +50,8 @@ export class PerfilExamen {
 export const PerfilExamenSchema =
   SchemaFactory.createForClass(PerfilExamen);
 
-// ✅ Índice único por empresa + nombre
+// ✅ ÍNDICE ÚNICO CORRECTO (empresa + puesto)
 PerfilExamenSchema.index(
-  { empresa: 1, nombre: 1 },
+  { empresa: 1, puesto: 1 },
   { unique: true },
 );

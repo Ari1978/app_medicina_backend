@@ -1,4 +1,3 @@
-
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
 
@@ -15,11 +14,19 @@ export class Formulario {
   @Prop({ type: Object, required: true })
   datos: any;
 
-  @Prop({ default: 'pendiente' })
-  estado: 'pendiente' | 'en_progreso' | 'resuelto';
+  @Prop({ 
+  default: 'pendiente',
+  enum: ['pendiente', 'en_progreso', 'resuelto', 'presupuestado'],
+})
+estado: 'pendiente' | 'en_progreso' | 'resuelto' | 'presupuestado';
+
 
   @Prop()
   respuestaStaff?: string;
+
+  // ✅ ARCHIVO ADJUNTO (PDF / IMG / WORD)
+  @Prop({ default: null })
+  archivo?: string;
 }
 
 export const FormularioSchema = SchemaFactory.createForClass(Formulario);

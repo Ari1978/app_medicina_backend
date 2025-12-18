@@ -12,8 +12,12 @@ export class Empresa extends Document {
   @Prop({ required: true })
   razonSocial: string;
 
+  // ✅ **Número de cliente autoincremental**
+  @Prop({ type: Number, unique: true, index: true })
+  numeroCliente: number;
+
   // ---------------------------------------
-  // DOMICILIO ESTRUCTURADO ✅ AHORA OPCIONAL
+  // DOMICILIO
   // ---------------------------------------
   @Prop({
     required: false,
@@ -49,10 +53,7 @@ export class Empresa extends Document {
   };
 
   @Prop({
-    type: {
-      nombre: String,
-      celular: String,
-    },
+    type: { nombre: String, celular: String },
     default: null,
   })
   contacto2?: {
@@ -61,10 +62,7 @@ export class Empresa extends Document {
   };
 
   @Prop({
-    type: {
-      nombre: String,
-      celular: String,
-    },
+    type: { nombre: String, celular: String },
     default: null,
   })
   contacto3?: {
@@ -85,7 +83,7 @@ export class Empresa extends Document {
   email3?: string;
 
   // ---------------------------------------
-  // ART ✅ AHORA OPCIONAL
+  // ART
   // ---------------------------------------
   @Prop({ required: false })
   art?: string;
@@ -93,13 +91,14 @@ export class Empresa extends Document {
   // ---------------------------------------
   // Seguridad
   // ---------------------------------------
- @Prop({ required: true })
-password: string;
+  @Prop({ required: true })
+  password: string;
 
-@Prop({ default: true })
-mustChangePassword: boolean;
+  @Prop({ default: true })
+  mustChangePassword: boolean;
+
   // ---------------------------------------
-  // Estado del sistema
+  // Estado
   // ---------------------------------------
   @Prop({ default: true })
   activo: boolean;
@@ -112,3 +111,6 @@ mustChangePassword: boolean;
 }
 
 export const EmpresaSchema = SchemaFactory.createForClass(Empresa);
+
+// Índice único para mayor seguridad
+EmpresaSchema.index({ numeroCliente: 1 }, { unique: true });

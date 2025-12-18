@@ -20,9 +20,9 @@ export function setAdminCookie(res: Response, token: string) {
   res.cookie(ADMIN_COOKIE, token, {
     httpOnly: true,
     secure: isProd,                    // ✅ TRUE en producción
-    sameSite: isProd ? 'none' : 'lax', // ✅ NONE para cross-site
+    sameSite: isProd ? 'strict' : 'lax', // ✅ 'strict' para producción y 'lax' en desarrollo
     path: '/',                         // ✅ OBLIGATORIO
-    maxAge: 24 * 60 * 60 * 1000,
+    maxAge: 24 * 60 * 60 * 1000,        // 1 día
   });
 }
 
@@ -32,7 +32,7 @@ export function clearAdminCookie(res: Response) {
   res.clearCookie(ADMIN_COOKIE, {
     httpOnly: true,
     secure: isProd,
-    sameSite: isProd ? 'none' : 'lax',
+    sameSite: isProd ? 'strict' : 'lax',
     path: '/',
   });
 }

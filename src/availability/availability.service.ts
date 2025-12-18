@@ -10,7 +10,6 @@ import {
 import { BlocksService } from './blocks.service';
 import { FeriadosService } from './feriados.service';
 import { AvailabilityCacheService } from './availability.cache.service';
-import { AvailabilityEventsService } from './availability.events.service';
 
 import { TurnoService } from '../turno/turno.service';
 
@@ -20,48 +19,50 @@ export class AvailabilityService {
     private readonly blocks: BlocksService,
     private readonly feriados: FeriadosService,
     private readonly cache: AvailabilityCacheService,
-    private readonly events: AvailabilityEventsService,
 
     @Inject(forwardRef(() => TurnoService))
     private readonly turnosService: TurnoService,
 
     @InjectModel(Availability.name)
     private readonly availabilityModel: Model<AvailabilityDocument>,
-  ) {
-    this.events.subscribe(({ fecha }) => {
-      const key = `dispo:${fecha}`;
-      this.cache.del(key);
-    });
-  }
+  ) {}
 
+  // ============================================================
+  // HELPERS
+  // ============================================================
   private normalizarHora(hora: string): string {
     const [h, m] = hora.split(':');
     return `${h.padStart(2, '0')}:${m.padStart(2, '0')}`;
   }
 
-  // ✅ DISPONIBILIDAD GLOBAL
+  // ============================================================
+  // DISPONIBILIDAD GLOBAL POR FECHA
+  // ============================================================
   async getDisponibilidad(fecha: string) {
     const fechaLimpia = fecha.split('T')[0];
-    const fechaFix = new Date(fechaLimpia + 'T00:00:00');
+    const fechaFix = new Date(`${fechaLimpia}T00:00:00Z`);
     const day = fechaFix.getUTCDay();
 
-    const key = `dispo:${fechaLimpia}`;
+    const cacheKey = `dispo:${fechaLimpia}`;
 
-    const cached = await this.cache.get(key);
+    // ✅ Cache
+    const cached = await this.cache.get(cacheKey);
     if (cached) return cached;
 
-    // ❌ Domingos
+    // ❌ Domingo
     if (day === 0) return [];
 
-    // ❌ Feriados
-    const fechaISO = fechaFix.toISOString().split('T')[0];
-    if (this.feriados.esFeriado(fechaISO)) return [];
+    // ❌ Feriado
+    if (this.feriados.esFeriado(fechaLimpia)) return [];
 
-    // ✅ Config horarios
+    // ============================
+    // CONFIGURACIÓN HORARIA
+    // ============================
     let inicio = '07:00';
     let fin = '10:30';
     let cupos = 5;
 
+    // Sábado
     if (day === 6) {
       inicio = '08:00';
       fin = '09:30';
@@ -70,11 +71,13 @@ export class AvailabilityService {
 
     const bloques = this.blocks.generarBloques(inicio, fin, 15);
 
-    // ✅ TURNOS GLOBALES (NO por empresa)
+    // ============================
+    // TURNOS DEL DÍA (GLOBAL)
+    // ============================
     const turnos = await this.turnosService.listarPorFechaGlobal(fechaLimpia);
 
-    const disponibilidad = bloques.map((bloqueHora) => {
-      const horaNorm = this.normalizarHora(bloqueHora);
+    const disponibilidad = bloques.map((horaBloque) => {
+      const horaNorm = this.normalizarHora(horaBloque);
 
       const ocupados = turnos.filter(
         (t) =>
@@ -86,29 +89,32 @@ export class AvailabilityService {
         hora: horaNorm,
         capacidad: cupos,
         ocupados,
-        libres: cupos - ocupados,
+        libres: Math.max(cupos - ocupados, 0),
         disponible: ocupados < cupos,
       };
     });
 
-    await this.cache.set(key, disponibilidad);
+    await this.cache.set(cacheKey, disponibilidad);
     return disponibilidad;
   }
 
+  // ============================================================
+  // BLOQUEAR TURNO (RESERVA)
+  // ============================================================
   async bloquearTurno(fecha: string, hora: string) {
-    let day = await this.availabilityModel.findOne({ fecha });
+    let dia = await this.availabilityModel.findOne({ fecha });
 
-    if (!day) {
-      day = await this.availabilityModel.create({
+    if (!dia) {
+      dia = await this.availabilityModel.create({
         fecha,
         cupos: {},
         bloqueados: [],
       });
     }
 
-    if (!day.bloqueados.includes(hora)) {
-      day.bloqueados.push(hora);
-      await day.save();
+    if (!dia.bloqueados.includes(hora)) {
+      dia.bloqueados.push(hora);
+      await dia.save();
     }
   }
 }

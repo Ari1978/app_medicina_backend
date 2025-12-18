@@ -65,8 +65,9 @@ export class TurnoPdfService {
       { label: 'Hora', value: turno.hora },
       { label: 'Tipo', value: turno.tipo },
       {
-  label: 'Motivo', value: turno.tipo === 'examen' ? turno.motivo ?? '—' : turno.motivoEstudio ?? '—',},
-
+        label: 'Motivo',
+        value: turno.motivo ?? '—',
+      },
     ]);
 
     doc.moveDown(1);
@@ -78,7 +79,6 @@ export class TurnoPdfService {
       drawListBox(doc, 'Estudios Incluidos', turno.listaEstudios);
       doc.moveDown(1);
     }
-
 
     // -----------------------------------------------------------
     // INDICACIONES
@@ -163,5 +163,4 @@ function drawListBox(doc: any, title: string, items: string[]) {
   items.forEach((i) => {
     doc.text(`• ${i}`);
   });
-  
 }

@@ -12,8 +12,12 @@ export class StaffExamenesService {
     const hoy = new Date().toISOString().split('T')[0];
 
     const totalHoy = await this.turnoService.contarPorFecha(hoy);
-    const pendientes = await this.turnoService.contarPorEstado('pendiente');
-    const completados = await this.turnoService.contarPorEstado('completado');
+
+    // pendiente = confirmado
+    const pendientes = await this.turnoService.contarPorEstado('confirmado');
+
+    // completado = realizado
+    const completados = await this.turnoService.contarPorEstado('realizado');
 
     const proximos = await this.turnoService.listarProximosTurnos(5);
 
