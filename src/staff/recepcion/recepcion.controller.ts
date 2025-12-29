@@ -1,6 +1,7 @@
 import {
   Controller,
   Get,
+  Post,
   Patch,
   Param,
   Body,
@@ -92,4 +93,30 @@ turnosPorFecha(
 
     res.send(pdf);
   }
+
+  // =========================
+// EDITAR DATOS DE POSTULANTE
+// =========================
+@Patch('turnos/:id/datos-postulante')
+editarDatosPostulante(
+  @Param('id') id: string,
+  @Body()
+  body: {
+    empleadoNombre: string;
+    empleadoApellido: string;
+    empleadoDni: string;
+  },
+) {
+  return this.recepcionService.editarDatosPostulante(id, body);
+}
+
+// =========================
+// DAR DE ALTA COMO PACIENTE
+// =========================
+@Post('turnos/:id/alta-paciente')
+darDeAltaComoPaciente(@Param('id') id: string) {
+  return this.recepcionService.altaPacienteDesdeTurno(id);
+}
+
+
 }

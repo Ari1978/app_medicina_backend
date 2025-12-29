@@ -26,6 +26,7 @@ import { StaffPermisoGuard } from '../auth/guards/staff-permiso.guard';
 import { TurnoModule } from 'src/turno/turno.module';
 import { FormularioModule } from '../formularios/formulario.module';
 import { AuthModule } from '../auth/auth.module';
+import { RecepcionModule } from './recepcion/recepcion.module';
 
 
 @Module({
@@ -33,6 +34,7 @@ import { AuthModule } from '../auth/auth.module';
     forwardRef(() => TurnoModule),
     forwardRef(() => FormularioModule),
     forwardRef(() => AuthModule),
+    forwardRef(() => RecepcionModule),
 
     // 👇 ACÁ ESTABA EL BLOQUEANTE
     MongooseModule.forFeature([

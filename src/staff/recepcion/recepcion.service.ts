@@ -10,6 +10,10 @@ import { Turno, TurnoDocument } from '../../turno/schema/turno.schema';
 import { logger } from '../../logger/winston.logger';
 import { PracticasService } from '../../practicas/practicas.service';
 import { TurnoPdfService } from '../../pdf/tunro-pdf.service';
+import {
+  Paciente,
+  PacienteDocument,
+} from '../pacientes/schemas/paciente.schema';
 
 @Injectable()
 export class RecepcionService {
@@ -18,6 +22,8 @@ export class RecepcionService {
     private readonly turnoModel: Model<TurnoDocument>,
     private readonly practicasService: PracticasService,
     private readonly pdfService: TurnoPdfService,
+    @InjectModel(Paciente.name)
+    private readonly pacienteModel: Model<PacienteDocument>,
   ) {}
 
   // ============================================================
@@ -189,4 +195,79 @@ export class RecepcionService {
   async datosParaImpresion(id: string) {
     return this.datosParaImpresionPorSector(id);
   }
+
+  async editarDatosPostulante(
+    id: string,
+    data: {
+      empleadoNombre: string;
+      empleadoApellido: string;
+      empleadoDni: string;
+    },
+  ) {
+    const turno = await this.turnoModel.findById(id);
+
+    if (!turno) {
+      throw new NotFoundException('Turno no encontrado');
+    }
+
+    // Validar DNI duplicado SOLO contra otros turnos/postulantes
+    const duplicado = await this.turnoModel.exists({
+      empleadoDni: data.empleadoDni,
+      _id: { $ne: id },
+    });
+
+    if (duplicado) {
+      throw new BadRequestException('DNI duplicado');
+    }
+
+    turno.empleadoNombre = data.empleadoNombre;
+    turno.empleadoApellido = data.empleadoApellido;
+    turno.empleadoDni = data.empleadoDni;
+
+    await turno.save();
+
+    return turno;
+  }
+
+  // ============================================================
+// DAR DE ALTA PACIENTE DESDE TURNO
+// ============================================================
+async altaPacienteDesdeTurno(turnoId: string) {
+  const turno = await this.turnoModel.findById(turnoId);
+
+  if (!turno) {
+    throw new NotFoundException('Turno no encontrado');
+  }
+
+  // Validación básica
+  if (!turno.empleadoDni || !turno.empleadoApellido || !turno.empleadoNombre) {
+    throw new BadRequestException('Datos del postulante incompletos');
+  }
+
+  // DNI duplicado
+  const existente = await this.pacienteModel.findOne({
+    dni: turno.empleadoDni,
+  });
+
+  if (existente) {
+    throw new BadRequestException('El DNI ya existe como paciente');
+  }
+
+  // Crear paciente
+  const paciente = await this.pacienteModel.create({
+    empresa: turno.empresa,
+    apellido: turno.empleadoApellido,
+    nombre: turno.empleadoNombre,
+    dni: turno.empleadoDni,
+    puesto: turno.puesto || '',
+    telefono: turno.solicitanteCelular || '',
+    activo: true,
+  });
+
+  return {
+    message: 'Paciente dado de alta correctamente',
+    paciente,
+  };
+}
+
 }
