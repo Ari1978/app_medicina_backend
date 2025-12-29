@@ -17,8 +17,8 @@ export function setEmpresaCookie(res: Response, token: string) {
 
   res.cookie(EMPRESA_COOKIE, token, {
     httpOnly: true,
-    secure: isProd,                     // obligatorio con SameSite=None
-    sameSite: isProd ? 'none' : 'lax',  // cross-site en prod
+    secure: isProd,
+    sameSite: isProd ? 'none' : 'lax',
     path: '/',
     maxAge: 7 * 24 * 60 * 60 * 1000,
   });

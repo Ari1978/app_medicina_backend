@@ -12,34 +12,41 @@ export class StaffPermisoGuard implements CanActivate {
   constructor(private reflector: Reflector) {}
 
   canActivate(context: ExecutionContext): boolean {
-    // 1) Leer permiso requerido desde el decorador
-    const permisoRequerido = this.reflector.getAllAndOverride<string>(
+    const permiso = this.reflector.get<string>(
       STAFF_PERMISO_KEY,
-      [context.getHandler(), context.getClass()],
+      context.getHandler(),
     );
 
-    if (!permisoRequerido) return true;
+    // Si el endpoint no pide permiso → pasa
+    if (!permiso) return true;
 
-    // 2) Obtener usuario del request
-    const req = context.switchToHttp().getRequest();
-    const user = req.user;
+    const request = context.switchToHttp().getRequest();
+    const user = request.user;
+
+    console.log('ROLE:', user?.role);
+  console.log('PERMISOS:', user?.permisos);
+  console.log('PERMISO REQUERIDO:', permiso);
 
     if (!user) {
       throw new ForbiddenException('No autenticado');
     }
 
-    // 3) Validar que sea STAFF
-    if (user.role !== 'staff') {
-      throw new ForbiddenException('Solo staff puede acceder');
+    // 👉 MÉDICO: pasa siempre
+    if (user.role === 'medico') {
+      return true;
     }
 
-    // 4) Verificar que tenga el permiso dentro de su array
-    if (!user.permisos || !user.permisos.includes(permisoRequerido)) {
-      throw new ForbiddenException(
-        `No tenés permiso para acceder a: ${permisoRequerido}`,
-      );
+    // 👉 STAFF: validar permiso
+    if (
+      user.role === 'staff' &&
+      Array.isArray(user.permisos) &&
+      user.permisos.includes(permiso)
+    ) {
+      return true;
     }
 
-    return true;
+    throw new ForbiddenException(
+      `No tenés permiso para realizar esta acción`,
+    );
   }
 }

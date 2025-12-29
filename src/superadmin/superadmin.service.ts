@@ -223,128 +223,143 @@ export class SuperAdminService {
   }
 
   // ============================================================
-  // STAFF CRUD
-  // ============================================================
-  async crearStaff(username: string, password: string) {
-    try {
-      const hashed = await bcrypt.hash(password, 10);
+// STAFF CRUD
+// ============================================================
 
-      const staff = await this.staffModel.create({
-        username,
-        password: hashed,
-        permisos: [],
-      });
+async crearStaff(username: string, password: string) {
+  try {
+    const hashed = await bcrypt.hash(password, 10);
 
-      logger.info(
-        `Staff creado por superadmin | id=${staff._id}`,
-        { context: 'SuperAdminService' },
-      );
+    const staff = await this.staffModel.create({
+      username,
+      password: hashed,
+      role: 'staff',          // ✅ CLAVE — SIN ESTO ROMPÍA TODO
+      permisos: [],
+    });
 
-      return staff;
-    } catch (error) {
-      const err =
-        error instanceof Error ? error : new Error('Error desconocido');
+    logger.info(
+      `Staff creado por superadmin | id=${staff._id}`,
+      { context: 'SuperAdminService' },
+    );
 
-      logger.error(
-        `Error al crear staff | username=${username} | ${err.message}`,
-        { context: 'SuperAdminService' },
-      );
+    return staff;
+  } catch (error) {
+    const err =
+      error instanceof Error ? error : new Error('Error desconocido');
 
-      throw err;
+    logger.error(
+      `Error al crear staff | username=${username} | ${err.message}`,
+      { context: 'SuperAdminService' },
+    );
+
+    throw err;
+  }
+}
+
+listarStaff() {
+  return this.staffModel.find();
+}
+
+async editarStaff(
+  id: string,
+  data: { username?: string; password?: string; role?: 'staff' | 'medico' },
+) {
+  try {
+    const updateData: any = {};
+
+    if (data.username) updateData.username = data.username;
+
+    if (data.password) {
+      updateData.password = await bcrypt.hash(data.password, 10);
     }
-  }
 
-  listarStaff() {
-    return this.staffModel.find();
-  }
-
-  async editarStaff(id: string, data: { username?: string; password?: string }) {
-    try {
-      const updateData: any = {};
-      if (data.username) updateData.username = data.username;
-      if (data.password) {
-        updateData.password = await bcrypt.hash(data.password, 10);
-      }
-
-      const staff = await this.staffModel.findByIdAndUpdate(id, updateData, {
-        new: true,
-      });
-
-      if (!staff) throw new NotFoundException('Staff no encontrado');
-
-      logger.info(
-        `Staff editado | id=${id}`,
-        { context: 'SuperAdminService' },
-      );
-
-      return { message: 'Staff actualizado correctamente', staff };
-    } catch (error) {
-      const err =
-        error instanceof Error ? error : new Error('Error desconocido');
-
-      logger.error(
-        `Error al editar staff | id=${id} | ${err.message}`,
-        { context: 'SuperAdminService' },
-      );
-
-      throw err;
+    if (data.role) {
+      updateData.role = data.role; // ✅ permite pasar staff ↔ medico
     }
+
+    const staff = await this.staffModel.findByIdAndUpdate(id, updateData, {
+      new: true,
+    });
+
+    if (!staff) throw new NotFoundException('Staff no encontrado');
+
+    logger.info(
+      `Staff editado | id=${id}`,
+      { context: 'SuperAdminService' },
+    );
+
+    return { message: 'Staff actualizado correctamente', staff };
+  } catch (error) {
+    const err =
+      error instanceof Error ? error : new Error('Error desconocido');
+
+    logger.error(
+      `Error al editar staff | id=${id} | ${err.message}`,
+      { context: 'SuperAdminService' },
+    );
+
+    throw err;
   }
+}
 
-  async resetStaffPassword(id: string, password: string) {
-    try {
-      const staff = await this.staffModel.findById(id);
-      if (!staff) throw new NotFoundException('Staff no encontrado');
+async resetStaffPassword(id: string, password: string) {
+  try {
+    const staff = await this.staffModel.findById(id);
+    if (!staff) throw new NotFoundException('Staff no encontrado');
 
-      staff.password = await bcrypt.hash(password, 10);
-      await staff.save();
+    staff.password = await bcrypt.hash(password, 10);
+    await staff.save();
 
-      logger.info(
-        `Password staff reseteado | id=${id}`,
-        { context: 'SuperAdminService' },
-      );
+    logger.info(
+      `Password staff reseteado | id=${id}`,
+      { context: 'SuperAdminService' },
+    );
 
-      return { message: 'Contraseña reseteada correctamente' };
-    } catch (error) {
-      const err =
-        error instanceof Error ? error : new Error('Error desconocido');
+    return { message: 'Contraseña reseteada correctamente' };
+  } catch (error) {
+    const err =
+      error instanceof Error ? error : new Error('Error desconocido');
 
-      logger.error(
-        `Error al resetear password staff | id=${id} | ${err.message}`,
-        { context: 'SuperAdminService' },
-      );
+    logger.error(
+      `Error al resetear password staff | id=${id} | ${err.message}`,
+      { context: 'SuperAdminService' },
+    );
 
-      throw err;
-    }
+    throw err;
   }
+}
 
-  async eliminarStaff(id: string) {
-    try {
-      const deleted = await this.staffModel.findByIdAndDelete(id);
-      if (!deleted) throw new NotFoundException('Staff no encontrado');
+async eliminarStaff(id: string) {
+  try {
+    const deleted = await this.staffModel.findByIdAndDelete(id);
+    if (!deleted) throw new NotFoundException('Staff no encontrado');
 
-      logger.info(
-        `Staff eliminado | id=${id}`,
-        { context: 'SuperAdminService' },
-      );
+    logger.info(
+      `Staff eliminado | id=${id}`,
+      { context: 'SuperAdminService' },
+    );
 
-      return { message: 'Staff eliminado' };
-    } catch (error) {
-      const err =
-        error instanceof Error ? error : new Error('Error desconocido');
+    return { message: 'Staff eliminado' };
+  } catch (error) {
+    const err =
+      error instanceof Error ? error : new Error('Error desconocido');
 
-      logger.error(
-        `Error al eliminar staff | id=${id} | ${err.message}`,
-        { context: 'SuperAdminService' },
-      );
+    logger.error(
+      `Error al eliminar staff | id=${id} | ${err.message}`,
+      { context: 'SuperAdminService' },
+    );
 
-      throw err;
-    }
+    throw err;
   }
+}
 
-  permisosStaff(id: string, permisos: string[]) {
-    return this.staffModel.findByIdAndUpdate(id, { permisos }, { new: true });
-  }
+permisosStaff(id: string, permisos: string[]) {
+  return this.staffModel.findByIdAndUpdate(
+    id,
+    { permisos },
+    { new: true },
+  );
+}
 
   // ============================================================
   // EMPRESAS PRECARGADAS

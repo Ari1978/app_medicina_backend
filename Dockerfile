@@ -1,6 +1,5 @@
-
 # ---------- BUILD ----------
-FROM node:20-alpine AS builder
+FROM node:20 AS builder
 
 WORKDIR /app
 
@@ -12,9 +11,15 @@ RUN npm run build
 
 
 # ---------- RUN ----------
-FROM node:20-alpine
+FROM node:20
 
 WORKDIR /app
+
+# 👉 instalar LibreOffice
+RUN apt-get update \
+ && apt-get install -y libreoffice \
+ && apt-get clean \
+ && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /app/package*.json ./
 COPY --from=builder /app/node_modules ./node_modules

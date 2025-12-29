@@ -4,168 +4,168 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 
-import { PerfilExamen, PerfilExamenDocument } from './schemas/perfil-examen.schema';
+import {
+  PerfilExamen,
+  PerfilExamenDocument,
+} from './schemas/perfil-examen.schema';
+
 import { CreatePerfilExamenDto } from './dto/create-perfil-examen.dto';
 import { UpdatePerfilExamenDto } from './dto/update-perfil-examen.dto';
+import { PerfilExamenLean } from './perfil-examen.types';
+
+import { CATALOGO_PRACTICAS } from '../practicas/practicas.catalog';
 
 @Injectable()
 export class PerfilExamenService {
   constructor(
     @InjectModel(PerfilExamen.name)
-    private readonly perfilModel: Model<PerfilExamenDocument>,
+    private readonly model: Model<PerfilExamenDocument>,
   ) {}
 
-  // ========================================
-  // ✅ CREAR PERFIL (POR EMPRESA)
-  // ========================================
-  async create(data: CreatePerfilExamenDto) {
-    try {
-      const perfil = await this.perfilModel.create({
-        puesto: data.puesto,          // ✅ UNIFICADO
-        estudios: data.estudios,
-        empresa: data.empresaId,
-        activo: true,
-      });
+  // ============================================================
+  // VALIDAR CÓDIGOS DE PRÁCTICAS
+  // ============================================================
+  private validarCodigos(codigos: string[]) {
+    if (!Array.isArray(codigos)) {
+      throw new BadRequestException(
+        'Las prácticas deben ser un array',
+      );
+    }
 
-      return perfil;
-    } catch (error: any) {
-      console.error('ERROR CREANDO PERFIL:', error);
+    for (const codigo of codigos) {
+      const existe = CATALOGO_PRACTICAS.some(
+        (p) => p.codigo === codigo,
+      );
 
-      // ✅ DUPLICADO (empresa + puesto)
-      if (error?.code === 11000) {
+      if (!existe) {
         throw new BadRequestException(
-          'Ya existe un perfil con ese puesto para esta empresa',
+          `Código de práctica inválido: ${codigo}`,
         );
       }
-
-      // ✅ VALIDACIÓN MONGOOSE
-      if (error?.name === 'ValidationError') {
-        throw new BadRequestException('Datos inválidos para crear el perfil');
-      }
-
-      throw new BadRequestException('No se pudo crear el perfil');
     }
   }
 
-  // ========================================
-  // ✅ LISTAR TODOS (DEBUG / SUPERADMIN)
-  // ========================================
-  async findAll() {
-  return this.perfilModel
-    .find()
-    .populate('empresa', 'razonSocial numeroCliente') // ⬅️ ACA ESTÁ LA SOLUCIÓN
-    .sort({ puesto: 1 });
-}
+  // ============================================================
+  // HIDRATAR PRÁCTICAS (CATÁLOGO → OBJETOS)
+  // ============================================================
+  private hidratarPracticas(codigos?: string[]) {
+    if (!Array.isArray(codigos)) return [];
 
-
-  // ========================================
-  // ✅ LISTAR PERFILES POR EMPRESA
-  // ========================================
-  async getByEmpresa(empresaId: string) {
-    return this.perfilModel
-      .find({ empresa: empresaId })
-      .sort({ puesto: 1 });
+    return codigos
+      .map((codigo) =>
+        CATALOGO_PRACTICAS.find((p) => p.codigo === codigo),
+      )
+      .filter(Boolean);
   }
 
-  // ========================================
-  // ✅ BUSCAR PERFIL POR PUESTO + EMPRESA
-  // ========================================
-  async getByPuesto(empresaId: string, puesto: string) {
-    const perfil = await this.perfilModel.findOne({
-      empresa: empresaId,
-      puesto,
+  // ============================================================
+  // EMPRESA → VER PERFILES
+  // ============================================================
+  async findByEmpresa(empresaId: string) {
+    const perfiles = await this.model
+      .find({
+        empresa: new Types.ObjectId(empresaId),
+        activo: true,
+      })
+      .populate('empresa', 'razonSocial numeroCliente')
+      .sort({ createdAt: -1 })
+      .lean<PerfilExamenLean[]>();
+
+    return perfiles.map((p) => ({
+      ...p,
+      practicas: this.hidratarPracticas(p.practicasPerfil),
+    }));
+  }
+
+  // ============================================================
+  // STAFF → VER TODOS
+  // ============================================================
+  async findAllStaff() {
+    const perfiles = await this.model
+      .find({ activo: true })
+      .populate('empresa', 'razonSocial numeroCliente')
+      .sort({ createdAt: -1 })
+      .lean<PerfilExamenLean[]>();
+
+    return perfiles.map((p) => ({
+      ...p,
+      practicas: this.hidratarPracticas(p.practicasPerfil),
+    }));
+  }
+
+  // ============================================================
+  // STAFF → VER UNO
+  // ============================================================
+  async findById(id: string) {
+    const perfil = await this.model
+      .findById(id)
+      .populate('empresa', 'razonSocial numeroCliente')
+      .lean<PerfilExamenLean>();
+
+    if (!perfil) {
+      throw new NotFoundException('Perfil no encontrado');
+    }
+
+    return {
+      ...perfil,
+      practicas: this.hidratarPracticas(perfil.practicasPerfil),
+    };
+  }
+
+  // ============================================================
+  // STAFF → CREAR PERFIL
+  // ============================================================
+  async createForEmpresa(dto: CreatePerfilExamenDto) {
+    this.validarCodigos(dto.practicasPerfil);
+
+    return this.model.create({
+      puesto: dto.puesto.trim(),
+      tipo: dto.tipo,
+      practicasPerfil: dto.practicasPerfil,
+      empresa: new Types.ObjectId(dto.empresaId),
       activo: true,
     });
-
-    if (!perfil) {
-      throw new NotFoundException(
-        'No existe perfil para ese puesto en esta empresa',
-      );
-    }
-
-    return perfil;
   }
 
-  // ========================================
-  // ✅ BUSCAR PERFIL POR ID
-  // ========================================
-  async findOne(id: string) {
-    const perfil = await this.perfilModel
-      .findById(id)
-      .populate('empresa', 'razonSocial');
+  // ============================================================
+  // STAFF → EDITAR PERFIL
+  // ============================================================
+  async update(id: string, dto: UpdatePerfilExamenDto) {
+    if (dto.practicasPerfil) {
+      this.validarCodigos(dto.practicasPerfil);
+    }
+
+    const perfil = await this.model
+      .findByIdAndUpdate(
+        id,
+        {
+          ...(dto.puesto !== undefined && { puesto: dto.puesto }),
+          ...(dto.tipo !== undefined && { tipo: dto.tipo }),
+          ...(dto.practicasPerfil !== undefined && {
+            practicasPerfil: dto.practicasPerfil,
+          }),
+        },
+        { new: true },
+      )
+      .lean<PerfilExamenLean>();
 
     if (!perfil) {
       throw new NotFoundException('Perfil no encontrado');
     }
 
-    return perfil;
-  }
-
-  // ========================================
-// ✅ EDITAR PERFIL (LIMPIANDO _id DE ESTUDIOS)
-// ========================================
-async update(id: string, data: UpdatePerfilExamenDto) {
-  try {
-    // 🔥 LIMPIAR _id DE LOS ESTUDIOS PARA EVITAR ERROR 400
-    const estudiosLimpios = data.estudios
-      ? data.estudios.map(e => ({
-          nombre: e.nombre,
-          sector: e.sector,
-        }))
-      : undefined;
-
-    const updateData = {
-      puesto: data.puesto,
-      activo: data.activo,
-      ...(estudiosLimpios && { estudios: estudiosLimpios }),
+    return {
+      ...perfil,
+      practicas: this.hidratarPracticas(perfil.practicasPerfil),
     };
-
-    const perfil = await this.perfilModel.findByIdAndUpdate(
-      id,
-      updateData,
-      { new: true },
-    );
-
-    if (!perfil) {
-      throw new NotFoundException('Perfil no encontrado');
-    }
-
-    return perfil;
-
-  } catch (error: any) {
-    console.error('ERROR ACTUALIZANDO PERFIL:', error);
-
-    if (error?.code === 11000) {
-      throw new BadRequestException(
-        'Ya existe un perfil con ese puesto para esta empresa',
-      );
-    }
-
-    throw new BadRequestException('No se pudo actualizar el perfil');
   }
-}
 
-
-  // ========================================
-  // ✅ ELIMINAR PERFIL (BORRADO FÍSICO)
-  // ========================================
+  // ============================================================
+  // STAFF → ELIMINAR (BORRADO LÓGICO)
+  // ============================================================
   async delete(id: string) {
-    const perfil = await this.perfilModel.findByIdAndDelete(id);
-
-    if (!perfil) {
-      throw new NotFoundException('Perfil no encontrado');
-    }
-
-    return { message: 'Perfil eliminado correctamente' };
-  }
-
-  // ========================================
-  // ✅ OPCIONAL: ELIMINADO LÓGICO (DESACTIVAR)
-  // ========================================
-  async desactivar(id: string) {
-    const perfil = await this.perfilModel.findByIdAndUpdate(
+    const perfil = await this.model.findByIdAndUpdate(
       id,
       { activo: false },
       { new: true },
@@ -175,6 +175,6 @@ async update(id: string, data: UpdatePerfilExamenDto) {
       throw new NotFoundException('Perfil no encontrado');
     }
 
-    return perfil;
+    return { ok: true };
   }
 }

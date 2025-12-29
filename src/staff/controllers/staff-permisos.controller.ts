@@ -1,16 +1,24 @@
-
 import { Controller, Get, Req, UseGuards } from '@nestjs/common';
-import { JwtStaffGuard } from '../../auth/guards/staff-jwt.guard';
+import { Request } from 'express';
+
+import { JwtAuthGuard } from '../../auth/guards/jwt.guard';
+import { RolesGuard } from '../../auth/guards/roles.guard';
+
+import { Roles } from '../../auth/decorators/roles.decorator';
+import { Role } from '../../auth/roles.enum';
 
 @Controller('staff/permisos')
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles(Role.Staff)
 export class StaffPermisosController {
-  @UseGuards(JwtStaffGuard)
   @Get()
-  getPermisos(@Req() req) {
+  getPermisos(@Req() req: Request) {
+    const user = req.user as any;
+
     return {
-      id: req.user.id,
-      username: req.user.username,
-      permisos: req.user.permisos ?? [],
+      id: user.id,
+      username: user.username,
+      permisos: user.permisos ?? [],
     };
   }
 }

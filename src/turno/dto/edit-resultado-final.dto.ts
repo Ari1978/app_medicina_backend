@@ -8,30 +8,36 @@ import {
 import { Type } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
-import { ResultadoEstudioDto } from './resultado-estudio.dto';
+import { ResultadoPracticaDto } from './resultado-practicas.dto';
 
 export class EditResultadoFinalDto {
+  // ============================
+  // PRÁCTICAS EDITADAS
+  // ============================
   @ApiPropertyOptional({
-    type: [ResultadoEstudioDto],
-    description: 'Listado de estudios editados',
+    type: [ResultadoPracticaDto],
+    description: 'Listado de prácticas editadas',
   })
   @IsOptional()
   @IsArray()
   @ValidateNested({ each: true })
-  @Type(() => ResultadoEstudioDto)
-  estudios?: ResultadoEstudioDto[];
+  @Type(() => ResultadoPracticaDto)
+  practicas?: ResultadoPracticaDto[];
 
+  // ============================
+  // APTITUD FINAL
+  // ============================
   @ApiPropertyOptional({
     enum: ['A', 'B', 'C'],
-    description: 'Aptitud final',
   })
   @IsOptional()
   @IsEnum(['A', 'B', 'C'])
   aptitud?: 'A' | 'B' | 'C';
 
-  @ApiPropertyOptional({
-    description: 'Observación general del resultado',
-  })
+  // ============================
+  // OBSERVACIÓN GENERAL
+  // ============================
+  @ApiPropertyOptional()
   @IsOptional()
   @IsString()
   observacionGeneral?: string;

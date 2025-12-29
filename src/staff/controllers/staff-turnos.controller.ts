@@ -9,15 +9,26 @@ import {
 
 import { ApiTags, ApiOperation, ApiParam } from '@nestjs/swagger';
 
-import { JwtStaffGuard } from '../../auth/guards/staff-jwt.guard';
+import { JwtAuthGuard } from '../../auth/guards/jwt.guard';
+import { RolesGuard } from '../../auth/guards/roles.guard';
+import { StaffPermisoGuard } from '../../auth/guards/staff-permiso.guard';
+
+import { Roles } from '../../auth/decorators/roles.decorator';
+import { StaffPermiso } from '../../auth/decorators/staff-permiso.decorator';
+
+import { Role } from '../../auth/roles.enum';
+import { StaffPermisoEnum } from '../../auth/enums/staff-permiso.enum';
+
 import { TurnoService } from '../../turno/turno.service';
 
 import { CreateResultadoFinalDto } from '../../turno/dto/create-resultado-final.dto';
 import { EditResultadoFinalDto } from '../../turno/dto/edit-resultado-final.dto';
 
 @ApiTags('Staff - Turnos')
-@UseGuards(JwtStaffGuard)
 @Controller('staff/turnos')
+@UseGuards(JwtAuthGuard, RolesGuard, StaffPermisoGuard)
+@Roles(Role.Staff)
+@StaffPermiso(StaffPermisoEnum.TURNOS)
 export class StaffTurnosController {
   constructor(private readonly turnoService: TurnoService) {}
 
@@ -101,5 +112,15 @@ export class StaffTurnosController {
     @Body() dto: EditResultadoFinalDto,
   ) {
     return this.turnoService.editarResultadoFinal(id, dto);
+  }
+
+  // ----------------------------------
+  // EVALUACIÓN MÉDICA
+  // (mismo permiso TURNOS)
+  // ----------------------------------
+
+  @Get('evaluacion/medica')
+  listarParaEvaluacion() {
+    return this.turnoService.listarParaEvaluacionMedica();
   }
 }

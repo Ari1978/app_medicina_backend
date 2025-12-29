@@ -1,58 +1,30 @@
-// src/perfil-examen/dto/update-perfil-examen.dto.ts
-import { ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsArray,
-  IsBoolean,
+  IsEnum,
   IsOptional,
   IsString,
-  ValidateNested,
+  IsNotEmpty,
 } from 'class-validator';
-import { Type } from 'class-transformer';
 
-class EstudioUpdateDto {
-  @ApiPropertyOptional({
-    example: 'Radiografía de Tórax',
-    description: 'Nombre del estudio',
-  })
-  @IsString()
-  nombre: string;
-
-  @ApiPropertyOptional({
-    example: 'Diagnóstico por imágenes',
-    description: 'Sector del estudio',
-  })
-  @IsString()
-  sector: string;
-}
-
+// =========================
+// ACTUALIZAR PERFIL DE EXAMEN
+// =========================
 export class UpdatePerfilExamenDto {
-  @ApiPropertyOptional({
-    example: 'Supervisor de Planta',
-    description: 'Puesto de trabajo asociado al perfil',
-  })
   @IsOptional()
   @IsString()
+  @IsNotEmpty()
   puesto?: string;
 
-  @ApiPropertyOptional({
-    example: true,
-    description: 'Indica si el perfil de examen está activo',
-  })
   @IsOptional()
-  @IsBoolean()
-  activo?: boolean;
+  @IsEnum(['ingreso', 'periodico', 'egreso'])
+  tipo?: 'ingreso' | 'periodico' | 'egreso';
 
-  @ApiPropertyOptional({
-    type: [EstudioUpdateDto],
-    description: 'Listado actualizado de estudios del perfil',
-    example: [
-      { nombre: 'Radiografía de Tórax', sector: 'Diagnóstico por imágenes' },
-      { nombre: 'Electrocardiograma', sector: 'Cardiología' },
-    ],
-  })
+  /**
+   * Códigos de prácticas asociadas al perfil
+   * Ej: ['100','400','503']
+   */
   @IsOptional()
   @IsArray()
-  @ValidateNested({ each: true })
-  @Type(() => EstudioUpdateDto)
-  estudios?: EstudioUpdateDto[];
+  @IsString({ each: true })
+  practicasPerfil?: string[];
 }

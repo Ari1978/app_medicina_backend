@@ -1,11 +1,4 @@
-import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
 import { Injectable, Inject, forwardRef } from '@nestjs/common';
-
-import {
-  Availability,
-  AvailabilityDocument,
-} from './schemas/availability.schema';
 
 import { BlocksService } from './blocks.service';
 import { FeriadosService } from './feriados.service';
@@ -22,9 +15,6 @@ export class AvailabilityService {
 
     @Inject(forwardRef(() => TurnoService))
     private readonly turnosService: TurnoService,
-
-    @InjectModel(Availability.name)
-    private readonly availabilityModel: Model<AvailabilityDocument>,
   ) {}
 
   // ============================================================
@@ -40,12 +30,14 @@ export class AvailabilityService {
   // ============================================================
   async getDisponibilidad(fecha: string) {
     const fechaLimpia = fecha.split('T')[0];
-    const fechaFix = new Date(`${fechaLimpia}T00:00:00Z`);
-    const day = fechaFix.getUTCDay();
+    const [y, m, d] = fechaLimpia.split('-').map(Number);
+    const day = new Date(y, m - 1, d).getDay();
 
     const cacheKey = `dispo:${fechaLimpia}`;
 
-    // ✅ Cache
+    // ============================
+    // CACHE
+    // ============================
     const cached = await this.cache.get(cacheKey);
     if (cached) return cached;
 
@@ -72,7 +64,7 @@ export class AvailabilityService {
     const bloques = this.blocks.generarBloques(inicio, fin, 15);
 
     // ============================
-    // TURNOS DEL DÍA (GLOBAL)
+    // TURNOS DEL DÍA (FUENTE ÚNICA)
     // ============================
     const turnos = await this.turnosService.listarPorFechaGlobal(fechaLimpia);
 
@@ -81,8 +73,7 @@ export class AvailabilityService {
 
       const ocupados = turnos.filter(
         (t) =>
-          this.normalizarHora(t.hora) === horaNorm &&
-          t.estado !== 'cancelado',
+          this.normalizarHora(t.hora) === horaNorm && t.estado !== 'cancelado',
       ).length;
 
       return {
@@ -99,22 +90,11 @@ export class AvailabilityService {
   }
 
   // ============================================================
-  // BLOQUEAR TURNO (RESERVA)
+  // INVALIDAR CACHE (CLAVE)
   // ============================================================
-  async bloquearTurno(fecha: string, hora: string) {
-    let dia = await this.availabilityModel.findOne({ fecha });
-
-    if (!dia) {
-      dia = await this.availabilityModel.create({
-        fecha,
-        cupos: {},
-        bloqueados: [],
-      });
-    }
-
-    if (!dia.bloqueados.includes(hora)) {
-      dia.bloqueados.push(hora);
-      await dia.save();
-    }
+  async invalidateCache(fecha: string) {
+    const fechaLimpia = fecha.split('T')[0];
+    const cacheKey = `dispo:${fechaLimpia}`;
+    await this.cache.del(cacheKey);
   }
 }

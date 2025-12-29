@@ -3,7 +3,7 @@ import { Document } from 'mongoose';
 
 @Schema({
   timestamps: true,
-  collection: 'staffusers'   // 🔥 AGREGAR ESTO
+  collection: 'staffusers',
 })
 export class Staff extends Document {
   @Prop({ required: true, unique: true })

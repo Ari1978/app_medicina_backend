@@ -5,15 +5,12 @@ import { Empresa } from 'src/empresa/schemas/empresa.schema';
 export type TurnoDocument = Turno & Document;
 
 // ============================
-// SUBDOCUMENTO: ESTUDIO OPERATIVO
+// PRÁCTICA OPERATIVA
 // ============================
 @Schema({ _id: false })
-export class EstudioOperativo {
+export class PracticaOperativa {
   @Prop({ required: true })
-  nombre: string;
-
-  @Prop({ required: true })
-  sector: string;
+  codigo: string;
 
   @Prop({
     enum: ['pendiente', 'realizado'],
@@ -22,43 +19,20 @@ export class EstudioOperativo {
   estado: 'pendiente' | 'realizado';
 }
 
-export const EstudioOperativoSchema =
-  SchemaFactory.createForClass(EstudioOperativo);
+export const PracticaOperativaSchema =
+  SchemaFactory.createForClass(PracticaOperativa);
 
 // ============================
-// SUBDOCUMENTO: RESULTADO ESTUDIO
-// ============================
-@Schema({ _id: false })
-export class ResultadoEstudio {
-  @Prop({ required: true })
-  nombre: string;
-
-  @Prop({ required: true })
-  sector: string;
-
-  @Prop({
-    enum: ['realizado'],
-    required: true,
-  })
-  estado: 'realizado';
-
-  @Prop({ required: true })
-  resumen: string;
-}
-
-export const ResultadoEstudioSchema =
-  SchemaFactory.createForClass(ResultadoEstudio);
-
-// ============================
-// SUBDOCUMENTO: RESULTADO FINAL
+// RESULTADO FINAL (VISIBLE EMPRESA)
 // ============================
 @Schema({ _id: false })
 export class ResultadoFinal {
   @Prop({
-    type: [ResultadoEstudioSchema],
+    type: [PracticaOperativaSchema],
     required: true,
+    default: [],
   })
-  estudios: ResultadoEstudio[];
+  practicas: PracticaOperativa[];
 
   @Prop({
     enum: ['A', 'B', 'C'],
@@ -74,13 +48,35 @@ export const ResultadoFinalSchema =
   SchemaFactory.createForClass(ResultadoFinal);
 
 // ============================
+// PRE INFORME MÉDICO (INTERNO)
+// ============================
+@Schema({ _id: false })
+export class PreInformeMedico {
+  @Prop({
+    type: [String],
+    required: true,
+    default: [],
+  })
+  codigos: string[]; // nomenclador tipo CIE
+
+  @Prop()
+  observacion?: string;
+
+  @Prop({ required: true })
+  medicoId: string;
+
+  @Prop({ required: true })
+  fecha: Date;
+}
+
+export const PreInformeMedicoSchema =
+  SchemaFactory.createForClass(PreInformeMedico);
+
+// ============================
 // TURNO
 // ============================
 @Schema({ timestamps: true })
 export class Turno {
-  // =========================
-  // EMPRESA
-  // =========================
   @Prop({
     type: MongooseSchema.Types.ObjectId,
     ref: 'Empresa',
@@ -88,18 +84,12 @@ export class Turno {
   })
   empresa: string | Empresa;
 
-  // =========================
-  // TIPO
-  // =========================
   @Prop({
     required: true,
     enum: ['examen', 'estudios'],
   })
   tipo: 'examen' | 'estudios';
 
-  // =========================
-  // EMPLEADO
-  // =========================
   @Prop({ required: true })
   empleadoNombre: string;
 
@@ -112,39 +102,32 @@ export class Turno {
   @Prop({ required: true })
   puesto: string;
 
-  // =========================
-  // MOTIVO
-  // =========================
   @Prop({ required: true })
   motivo: string;
 
-  // =========================
-  // CAMPOS PARA EXAMEN
-  // =========================
+  /**
+   * ID del perfil de examen (si aplica)
+   */
   @Prop()
   perfilExamen?: string;
 
-  @Prop({ type: [String], default: [] })
-  estudiosAdicionales?: string[];
+  /**
+   * Prácticas asociadas al turno
+   * Fuente única de verdad
+   */
+  @Prop({
+    type: [PracticaOperativaSchema],
+    default: [],
+    required: true,
+  })
+  listaPracticas: PracticaOperativa[];
 
-  // =========================
-  // CAMPOS PARA ESTUDIOS
-  // =========================
-  @Prop({ type: [String], default: [] })
-  listaEstudios?: string[];
-
-  // =========================
-  // FECHA / HORA
-  // =========================
   @Prop({ required: true })
   fecha: string;
 
   @Prop({ required: true })
   hora: string;
 
-  // =========================
-  // SOLICITANTE
-  // =========================
   @Prop({ required: true })
   solicitanteNombre: string;
 
@@ -154,33 +137,38 @@ export class Turno {
   @Prop({ required: true })
   solicitanteCelular: string;
 
-  // =========================
-  // ESTADO
-  // =========================
   @Prop({
     enum: ['provisional', 'confirmado', 'realizado', 'ausente', 'cancelado'],
     default: 'provisional',
   })
-  estado: 'provisional' | 'confirmado' | 'realizado' | 'ausente' | 'cancelado';
+  estado:
+    | 'provisional'
+    | 'confirmado'
+    | 'realizado'
+    | 'ausente'
+    | 'cancelado';
 
-  // =========================
-  // PDF RESULTADO
-  // =========================
+  /**
+   * Archivo final (PDF firmado, etc.)
+   */
   @Prop()
   pdfResultado?: string;
 
-  // =========================
-  // ESTUDIOS OPERATIVOS
-  // =========================
+  /**
+   * PRE INFORME MÉDICO
+   * - visible para médico y staff exámenes
+   * - NO visible para empresa
+   */
   @Prop({
-    type: [EstudioOperativoSchema],
-    default: [],
+    type: PreInformeMedicoSchema,
+    default: undefined,
   })
-  estudios: EstudioOperativo[];
+  preInformeMedico?: PreInformeMedico;
 
-  // =========================
-  // RESULTADO FINAL MÉDICO
-  // =========================
+  /**
+   * INFORME FINAL
+   * - visible para empresa
+   */
   @Prop({
     type: ResultadoFinalSchema,
     default: undefined,
@@ -190,9 +178,9 @@ export class Turno {
 
 export const TurnoSchema = SchemaFactory.createForClass(Turno);
 
-// =========================
+// ============================
 // ÍNDICE ÚNICO
-// =========================
+// ============================
 TurnoSchema.index(
   { empleadoDni: 1, fecha: 1, hora: 1 },
   { unique: true },

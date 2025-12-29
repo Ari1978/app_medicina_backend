@@ -1,4 +1,3 @@
-// src/empresa/empresa.service.ts
 import {
   Injectable,
   BadRequestException,
@@ -14,8 +13,39 @@ import { logger } from '../logger/winston.logger';
 @Injectable()
 export class EmpresaService {
   constructor(
-    @InjectModel(Empresa.name) private empresaModel: Model<Empresa>,
+    @InjectModel(Empresa.name)
+    private readonly empresaModel: Model<Empresa>,
   ) {}
+
+  // ------------------------------------------------------------
+  // LOGIN EMPRESA (LÓGICA CENTRALIZADA)
+  // ------------------------------------------------------------
+  async loginEmpresa(cuit: string, password: string) {
+    try {
+      const empresa = await this.findByCuit(cuit);
+
+      if (!empresa) {
+        throw new NotFoundException('CUIT incorrecto');
+      }
+
+      const ok = await bcrypt.compare(password, empresa.password);
+      if (!ok) {
+        throw new BadRequestException('Password incorrecto');
+      }
+
+      return empresa;
+    } catch (error) {
+      const err =
+        error instanceof Error ? error : new Error('Error desconocido');
+
+      logger.error(
+        `Error en login empresa | cuit=${cuit} | ${err.message}`,
+        { context: 'EmpresaService' },
+      );
+
+      throw err;
+    }
+  }
 
   // ------------------------------------------------------------
   // FINDERS

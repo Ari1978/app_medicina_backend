@@ -4,27 +4,24 @@ import {
   IsOptional,
   IsString,
   ValidateNested,
+  IsNotEmpty,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
-class EstudioResultadoDto {
+// ============================
+// PRÁCTICA A ACTUALIZAR
+// ============================
+export class PracticaResultadoDto {
   @ApiProperty({
-    description: 'Nombre del estudio',
-    example: 'Audiometría',
+    example: '503',
+    description: 'Código de la práctica',
   })
   @IsString()
-  nombre: string;
+  @IsNotEmpty()
+  codigo: string;
 
   @ApiProperty({
-    description: 'Sector del estudio',
-    example: 'Clínica',
-  })
-  @IsString()
-  sector: string;
-
-  @ApiProperty({
-    description: 'Estado del estudio',
     enum: ['pendiente', 'realizado'],
     example: 'realizado',
   })
@@ -32,24 +29,25 @@ class EstudioResultadoDto {
   estado: 'pendiente' | 'realizado';
 }
 
+// ============================
+// ACTUALIZAR RESULTADOS DEL TURNO
+// ============================
 export class UpdateResultadosTurnoDto {
   // ============================
-  // ESTUDIOS (ESTADO OPERATIVO)
+  // PRÁCTICAS (ACTUALIZA ESTADO)
   // ============================
   @ApiProperty({
-    description: 'Listado de estudios con estado actualizado',
-    type: [EstudioResultadoDto],
+    type: [PracticaResultadoDto],
   })
   @IsArray()
   @ValidateNested({ each: true })
-  @Type(() => EstudioResultadoDto)
-  estudios: EstudioResultadoDto[];
+  @Type(() => PracticaResultadoDto)
+  practicas: PracticaResultadoDto[];
 
   // ============================
-  // PDF RESULTADO
+  // PDF RESULTADO FINAL
   // ============================
   @ApiPropertyOptional({
-    description: 'URL o ruta del PDF final del resultado',
     example: 'https://storage.asmellab.com/resultados/turno123.pdf',
   })
   @IsOptional()
@@ -60,11 +58,10 @@ export class UpdateResultadosTurnoDto {
   // ESTADO GENERAL DEL TURNO
   // ============================
   @ApiPropertyOptional({
-    description: 'Estado general del turno',
-    enum: ['confirmado', 'realizado'],
-    example: 'realizado',
+    enum: ['confirmado', 'atendido'],
+    example: 'atendido',
   })
   @IsOptional()
-  @IsEnum(['confirmado', 'realizado'])
-  estado?: string;
+  @IsEnum(['confirmado', 'atendido'])
+  estado?: 'confirmado' | 'atendido';
 }

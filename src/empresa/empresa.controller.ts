@@ -3,12 +3,12 @@ import {
   Post,
   Get,
   Body,
-  Res,
   Req,
   UseGuards,
   Query,
-  BadRequestException,
   NotFoundException,
+  Param,
+  Res,
 } from '@nestjs/common';
 
 import {
@@ -19,10 +19,9 @@ import {
   ApiCookieAuth,
 } from '@nestjs/swagger';
 
-import { Response, Request } from 'express';
+import { Request, Response } from 'express';
 
 import { EmpresaService } from './empresa.service';
-
 import {
   signEmpresaToken,
   setEmpresaCookie,
@@ -30,22 +29,20 @@ import {
 } from './empresa.jwt';
 
 import { JwtEmpresaGuard } from '../auth/guards/jwt-empresa.guard';
-
-import * as bcrypt from 'bcryptjs';
+import { TurnoService } from '../turno/turno.service';
 
 @ApiTags('Empresa - Auth & Perfil')
 @Controller('empresa')
 export class EmpresaController {
-  constructor(private readonly empresaService: EmpresaService) {}
+  constructor(
+    private readonly empresaService: EmpresaService,
+    private readonly turnosService: TurnoService, // ✅ INYECTADO
+  ) {}
 
   // ============================================================
   // ✔ LOGIN EMPRESA
   // ============================================================
-  @ApiOperation({
-    summary: 'Login de empresa',
-    description:
-      'Autentica una empresa. Si mustChangePassword es true, requiere cambio de contraseña.',
-  })
+  @ApiOperation({ summary: 'Login de empresa' })
   @ApiBody({
     schema: {
       type: 'object',
@@ -56,152 +53,95 @@ export class EmpresaController {
       required: ['cuit', 'password'],
     },
   })
-  @Post('login')
-  async login(
-    @Body() body: { cuit: string; password: string },
-    @Res() res: Response,
-  ) {
-    const { cuit, password } = body;
+ @Post('login')
+async login(
+  @Body() body: { cuit: string; password: string },
+  @Res() res: Response,
+) {
+  const { cuit, password } = body;
 
-    const empresa = await this.empresaService.findByCuit(cuit);
+  const empresa = await this.empresaService.loginEmpresa(cuit, password);
 
-    if (!empresa) {
-      return res.status(401).json({
-        ok: false,
-        message: 'CUIT incorrecto',
-      });
-    }
+  if (empresa.mustChangePassword) {
+    return res.json({
+      ok: true,
+      mustChangePassword: true,
+      empresaId: empresa._id,
+      numeroCliente: empresa.numeroCliente || null,
+      message: 'Debe cambiar la contraseña antes de continuar',
+    });
+  }
 
-    const okPassword = await bcrypt.compare(password, empresa.password);
+  const token = signEmpresaToken({
+    empresaId: empresa._id.toString(),
+    role: 'empresa',
+  });
 
-    if (!okPassword) {
-      return res.status(401).json({
-        ok: false,
-        message: 'Password incorrecto',
-      });
-    }
+  setEmpresaCookie(res, token);
 
-    // ➤ Requiere cambio de contraseña
-    if (empresa.mustChangePassword === true) {
-      return res.status(200).json({
-        ok: true,
-        mustChangePassword: true,
-        empresaId: empresa._id,
-        numeroCliente: empresa.numeroCliente || null,
-        message: 'Debe cambiar la contraseña antes de continuar',
-      });
-    }
-
-    // ➤ Login normal
-    const token = signEmpresaToken({
+  return res.json({
+    ok: true,
+    message: 'Login exitoso',
+    empresa: {
       id: empresa._id,
-      role: 'empresa',
-    });
-
-    setEmpresaCookie(res, token);
-
-    return res.json({
-      ok: true,
-      message: 'Login exitoso',
-      empresa: {
-        id: empresa._id,
-        cuit: empresa.cuit,
-        razonSocial: empresa.razonSocial,
-        email1: empresa.email1,
-        numeroCliente: empresa.numeroCliente || null,
-      },
-    });
-  }
-
-  // ============================================================
-  // ✔ CAMBIO OBLIGATORIO DE PASSWORD
-  // ============================================================
-  @ApiOperation({
-    summary: 'Cambio obligatorio de contraseña',
-  })
-  @ApiBody({
-    schema: {
-      type: 'object',
-      properties: {
-        empresaId: { type: 'string', example: '64f1b2c3a4...' },
-        password: { type: 'string', example: 'NuevaPassword123' },
-        repetirPassword: { type: 'string', example: 'NuevaPassword123' },
-      },
-      required: ['empresaId', 'password', 'repetirPassword'],
+      cuit: empresa.cuit,
+      razonSocial: empresa.razonSocial,
+      email1: empresa.email1,
+      numeroCliente: empresa.numeroCliente || null,
     },
-  })
-  @Post('cambiar-password')
-  async cambiarPassword(
-    @Body()
-    body: {
-      empresaId: string;
-      password: string;
-      repetirPassword: string;
-    },
-    @Res() res: Response,
-  ) {
-    const { empresaId, password, repetirPassword } = body;
+  });
+}
 
-    if (!password || !repetirPassword) {
-      throw new BadRequestException('Debe completar ambas contraseñas');
-    }
-
-    if (password !== repetirPassword) {
-      throw new BadRequestException('Las contraseñas no coinciden');
-    }
-
-    await this.empresaService.resetPassword(empresaId, password);
-
-    return res.json({
-      ok: true,
-      message: 'Contraseña actualizada correctamente. Ya puede iniciar sesión.',
-    });
-  }
 
   // ============================================================
   // ✔ PERFIL EMPRESA LOGUEADA
   // ============================================================
   @ApiOperation({
-    summary: 'Obtener perfil de la empresa autenticada',
+    summary:
+      'Obtener perfil de la empresa autenticada',
   })
   @ApiCookieAuth('asmel_empresa_token')
   @UseGuards(JwtEmpresaGuard)
   @Get('me')
-  async me(@Req() req: Request) {
-    const user = req.user as { id: string };
-    const empresa = await this.empresaService.findById(user.id);
+@UseGuards(JwtEmpresaGuard)
+async me(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
+  res.set({
+    'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+    Pragma: 'no-cache',
+    Expires: '0',
+  });
 
-    if (!empresa) {
-      throw new NotFoundException('Empresa no encontrada');
-    }
+  const user = req.user as { empresaId: string };
 
-    return {
-      id: empresa._id,
-      cuit: empresa.cuit,
-      razonSocial: empresa.razonSocial,
-      email1: empresa.email1,
-      numeroCliente: empresa.numeroCliente ?? null,
-    };
-  }
+  const empresa = await this.empresaService.findById(user.empresaId);
+  if (!empresa) throw new NotFoundException('Empresa no encontrada');
+
+  return {
+    id: empresa._id,
+    cuit: empresa.cuit,
+    razonSocial: empresa.razonSocial,
+    email1: empresa.email1,
+    numeroCliente: empresa.numeroCliente || null,
+    role: 'empresa', // 🔑 IMPORTANTE
+  };
+}
 
   // ============================================================
   // ✔ LOGOUT
   // ============================================================
-  @ApiOperation({
-    summary: 'Logout de empresa',
-  })
+  @ApiOperation({ summary: 'Logout de empresa' })
   @Post('logout')
-  async logout(@Res() res: Response) {
-    clearEmpresaCookie(res);
-    return res.json({ message: 'Logout OK' });
+  async logout(
+    @Req() req: Request & { res: Response },
+  ) {
+    clearEmpresaCookie(req.res);
+    return { ok: true, message: 'Logout OK' };
   }
 
   // ============================================================
   // ✔ BUSCADOR DE EMPRESAS
   // ============================================================
-  @ApiOperation({
-    summary: 'Buscar empresas',
-  })
+  @ApiOperation({ summary: 'Buscar empresas' })
   @ApiQuery({
     name: 'query',
     required: false,
@@ -210,5 +150,32 @@ export class EmpresaController {
   @Get('buscar')
   async buscar(@Query('query') query: string) {
     return this.empresaService.buscarEmpresas(query);
+  }
+
+  // ============================================================
+  // ✔ DESCARGAR PDF RESUMEN DEL TURNO
+  // ============================================================
+  @ApiOperation({
+    summary: 'Descargar PDF resumen del turno',
+  })
+  @ApiCookieAuth('asmel_empresa_token')
+  @UseGuards(JwtEmpresaGuard)
+  @Get('turnos/:id/pdf-resumen')
+  async descargarPdfResumen(
+    @Param('id') turnoId: string,
+    @Res() res: Response,
+  ) {
+    const pdfBuffer =
+      await this.turnosService.generarPdfResumen(
+        turnoId,
+      );
+
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition':
+        'attachment; filename=informe-turno.pdf',
+    });
+
+    res.end(pdfBuffer);
   }
 }

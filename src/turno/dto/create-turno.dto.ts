@@ -4,11 +4,28 @@ import {
   IsOptional,
   IsEnum,
   IsArray,
-  ValidateIf,
+  ValidateNested,
 } from 'class-validator';
-
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
 
+// ============================
+// PRÁCTICA DEL TURNO
+// ============================
+export class PracticaTurnoDto {
+  @ApiProperty({ example: '503' })
+  @IsString()
+  @IsNotEmpty()
+  codigo: string;
+
+  @ApiProperty({ enum: ['pendiente', 'realizado'] })
+  @IsEnum(['pendiente', 'realizado'])
+  estado: 'pendiente' | 'realizado';
+}
+
+// ============================
+// CREAR TURNO
+// ============================
 export class CreateTurnoDto {
   // ============================
   // TIPO
@@ -16,10 +33,30 @@ export class CreateTurnoDto {
   @ApiProperty({
     enum: ['examen', 'estudios'],
     example: 'examen',
-    description: 'Tipo de turno',
   })
   @IsEnum(['examen', 'estudios'])
-  tipo: string;
+  tipo: 'examen' | 'estudios';
+
+  // ============================
+  // MOTIVO
+  // ============================
+  @ApiProperty({
+    example: 'ingreso',
+  })
+  @IsString()
+  @IsNotEmpty()
+  motivo: string;
+
+  // ============================
+  // PERFIL EXAMEN (opcional)
+  // ============================
+  @ApiPropertyOptional({
+    example: '65fae123abc...',
+    description: 'ID del perfil de examen',
+  })
+  @IsOptional()
+  @IsString()
+  perfilExamen?: string;
 
   // ============================
   // EMPLEADO
@@ -43,51 +80,6 @@ export class CreateTurnoDto {
   @IsString()
   @IsNotEmpty()
   puesto: string;
-
-  // ============================
-  // MOTIVO UNIFICADO
-  // ============================
-  @ApiProperty({
-    example: 'Ingreso',
-    description: 'Motivo del turno (ingreso, periódico, egreso, etc.)',
-  })
-  @IsString()
-  @IsNotEmpty()
-  @ValidateIf(o => o.tipo === 'examen' || o.tipo === 'estudios')
-  motivo: string;
-
-  // ============================
-  // PERFIL EXAMEN
-  // ============================
-  @ApiPropertyOptional({
-    example: 'Administrativo',
-    description: 'Perfil de examen (solo para tipo examen)',
-  })
-  @ValidateIf(o => o.tipo === 'examen')
-  @IsOptional()
-  @IsString()
-  perfilExamen?: string;
-
-  @ApiPropertyOptional({
-    example: ['Audiometría', 'Espirometría'],
-    description: 'Estudios adicionales (solo para examen)',
-  })
-  @ValidateIf(o => o.tipo === 'examen')
-  @IsOptional()
-  @IsArray()
-  estudiosAdicionales?: string[];
-
-  // ============================
-  // LISTA ESTUDIOS
-  // ============================
-  @ApiPropertyOptional({
-    example: ['Radiografía de tórax', 'Laboratorio'],
-    description: 'Lista de estudios (solo para tipo estudios)',
-  })
-  @ValidateIf(o => o.tipo === 'estudios')
-  @IsArray()
-  @IsNotEmpty()
-  listaEstudios?: string[];
 
   // ============================
   // FECHA / HORA
@@ -119,4 +111,19 @@ export class CreateTurnoDto {
   @IsString()
   @IsNotEmpty()
   solicitanteCelular: string;
+
+  // ============================
+  // PRÁCTICAS DEL TURNO (FINAL)
+  // ============================
+  @ApiProperty({
+    type: [PracticaTurnoDto],
+    example: [
+      { codigo: '201', estado: 'pendiente' },
+      { codigo: '503', estado: 'pendiente' },
+    ],
+  })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => PracticaTurnoDto)
+  listaPracticas: PracticaTurnoDto[];
 }

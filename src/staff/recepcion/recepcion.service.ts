@@ -8,19 +8,23 @@ import { Model } from 'mongoose';
 
 import { Turno, TurnoDocument } from '../../turno/schema/turno.schema';
 import { logger } from '../../logger/winston.logger';
+import { PracticasService } from '../../practicas/practicas.service';
+import { TurnoPdfService } from '../../pdf/tunro-pdf.service';
 
 @Injectable()
 export class RecepcionService {
   constructor(
     @InjectModel(Turno.name)
     private readonly turnoModel: Model<TurnoDocument>,
+    private readonly practicasService: PracticasService,
+    private readonly pdfService: TurnoPdfService,
   ) {}
 
   // ============================================================
   // TURNOS DEL DÍA (HOY)
   // ============================================================
   async turnosDeHoy() {
-    const hoy = new Date().toISOString().substring(0, 10);
+    const hoy = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
 
     return this.turnoModel
       .find({
@@ -41,7 +45,7 @@ export class RecepcionService {
 
     return this.turnoModel
       .find({
-        fecha,
+        fecha, // 👈 comparación directa por string
         estado: { $ne: 'cancelado' },
       })
       .populate('empresa', 'razonSocial cuit')
@@ -49,7 +53,7 @@ export class RecepcionService {
   }
 
   // ============================================================
-  // BUSCADOR INTELIGENTE (nombre / apellido / DNI)
+  // BUSCADOR INTELIGENTE
   // ============================================================
   async buscar(query: string) {
     if (!query) return [];
@@ -70,10 +74,7 @@ export class RecepcionService {
   // ============================================================
   // CAMBIAR ESTADO DESDE RECEPCIÓN
   // ============================================================
-  async cambiarEstadoRecepcion(
-    id: string,
-    estado: 'confirmado' | 'ausente',
-  ) {
+  async cambiarEstadoRecepcion(id: string, estado: 'confirmado' | 'ausente') {
     const turno = await this.turnoModel.findById(id);
 
     if (!turno) {
@@ -96,9 +97,9 @@ export class RecepcionService {
   }
 
   // ============================================================
-  // DATOS PARA IMPRESIÓN (SOLO CONFIRMADOS)
+  // DATOS PARA IMPRESIÓN (POR SECTOR)
   // ============================================================
-  async datosParaImpresion(id: string) {
+  async datosParaImpresionPorSector(id: string) {
     const turno = await this.turnoModel
       .findById(id)
       .populate('empresa', 'razonSocial cuit');
@@ -113,20 +114,79 @@ export class RecepcionService {
       );
     }
 
-    // 🔐 Type narrowing correcto
-    const empresa =
-      typeof turno.empresa === 'string'
-        ? undefined
-        : turno.empresa.razonSocial;
+    const catalogo = this.practicasService.listar();
+    const mapPracticas = new Map(catalogo.map((p) => [p.codigo, p]));
+
+    const practicasPorSector: Record<string, any[]> = {};
+
+    for (const p of turno.listaPracticas ?? []) {
+      const info = mapPracticas.get(p.codigo);
+      if (!info) continue;
+
+      if (!practicasPorSector[info.sector]) {
+        practicasPorSector[info.sector] = [];
+      }
+
+      practicasPorSector[info.sector].push({
+        codigo: info.codigo,
+        nombre: info.nombre,
+        estado: p.estado,
+      });
+    }
 
     return {
-      protocolo: turno._id,
+      turnoId: turno._id,
       fecha: turno.fecha,
       hora: turno.hora,
       paciente: `${turno.empleadoApellido} ${turno.empleadoNombre}`,
       dni: turno.empleadoDni,
-      empresa,
-      estudios: turno.listaEstudios ?? [],
+      empresa:
+        typeof turno.empresa === 'string'
+          ? undefined
+          : turno.empresa.razonSocial,
+      practicasPorSector,
     };
+  }
+
+  // ============================================================
+  // PDF RECEPCIÓN
+  // ============================================================
+  async generarPdfRecepcion(turnoId: string): Promise<Buffer> {
+    const turno = await this.turnoModel
+      .findById(turnoId)
+      .populate('empresa', 'razonSocial cuit');
+
+    if (!turno) {
+      throw new NotFoundException('Turno no encontrado');
+    }
+
+    if (turno.estado !== 'confirmado') {
+      throw new BadRequestException('Solo se imprimen turnos confirmados');
+    }
+
+    const catalogo = this.practicasService.listar();
+    const mapPracticas = new Map(catalogo.map((p) => [p.codigo, p]));
+
+    const practicas = (turno.listaPracticas ?? []).map((p) => {
+      const info = mapPracticas.get(p.codigo);
+
+      return {
+        codigo: p.codigo,
+        nombre: info?.nombre ?? `Práctica (${p.codigo})`,
+        sector: info?.sector ?? 'General',
+      };
+    });
+
+    return this.pdfService.generarOrdenRecepcion({
+      turno,
+      practicas,
+    });
+  }
+
+  // ============================================================
+  // COMPATIBILIDAD
+  // ============================================================
+  async datosParaImpresion(id: string) {
+    return this.datosParaImpresionPorSector(id);
   }
 }

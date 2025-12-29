@@ -1,46 +1,49 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
-import { JwtService } from '@nestjs/jwt';
-import * as bcrypt from 'bcryptjs';
+// src/auth/auth.service.ts
 
+import {
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
+import * as bcrypt from 'bcryptjs';
+import { JwtService } from '@nestjs/jwt';
 import { EmpresaService } from '../empresa/empresa.service';
-import { COOKIE_EMPRESA } from './auth.constants';
 
 @Injectable()
 export class AuthService {
   constructor(
-    private empresaService: EmpresaService,
-    private jwt: JwtService,
+    private readonly empresaService: EmpresaService,
+    private readonly jwt: JwtService,
   ) {}
 
-  // 🔹 LOGIN EMPRESA (CUIT + password)
+  // ========================================
+  // 🔹 LOGIN EMPRESA (CUIT + PASSWORD)
+  // ========================================
   async loginEmpresa(cuit: string, password: string) {
-  console.log(">>> CUIT RECIBIDO EN AUTH:", JSON.stringify(cuit));
-  console.log(">>> PASSWORD RECIBIDO EN AUTH:", JSON.stringify(password));
+    const empresa = await this.empresaService.findByCuit(cuit);
 
-  const empresa = await this.empresaService.findByCuit(cuit);
+    if (!empresa) {
+      throw new UnauthorizedException('CUIT incorrecto');
+    }
 
-  console.log(">>> RESULTADO findByCuit:", empresa);
+    const ok = await bcrypt.compare(password, empresa.password);
+    if (!ok) {
+      throw new UnauthorizedException('Contraseña incorrecta');
+    }
 
-  if (!empresa) {
-    throw new UnauthorizedException("CUIT incorrecto");
+    // 🔥 JWT BIEN ARMADO
+    const token = this.jwt.sign({
+      sub: empresa._id.toString(),
+      empresaId: empresa._id.toString(),
+      role: 'empresa',
+    });
+
+    return { empresa, token };
   }
 
-  const ok = await bcrypt.compare(password, empresa.password);
-  if (!ok) {
-    throw new UnauthorizedException("Contraseña incorrecta");
-  }
-
-  const token = this.jwt.sign({
-    id: empresa._id,
-    role: 'empresa',
-  });
-
-  return { empresa, token };
-}
-
-
-  // 🔹 Verificar token y devolver empresa
+  // ========================================
+  // 🔹 VALIDAR TOKEN (JWT STRATEGY)
+  // ========================================
   async validateUser(payload: any) {
-    return this.empresaService.findById(payload.id);
+    return this.empresaService.findById(payload.empresaId);
   }
 }

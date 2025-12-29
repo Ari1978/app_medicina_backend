@@ -1,3 +1,5 @@
+// src/auth/strategies/jwt-empresa.strategy.ts
+
 import { Injectable } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
@@ -5,7 +7,10 @@ import { Request } from 'express';
 import { ConfigService } from '@nestjs/config';
 
 @Injectable()
-export class JwtEmpresaStrategy extends PassportStrategy(Strategy, 'empresa-jwt') {
+export class JwtEmpresaStrategy extends PassportStrategy(
+  Strategy,
+  'empresa-jwt',
+) {
   constructor(config: ConfigService) {
     const secret = config.get<string>('JWT_SECRET');
 
@@ -18,11 +23,16 @@ export class JwtEmpresaStrategy extends PassportStrategy(Strategy, 'empresa-jwt'
         (req: Request) => req?.cookies?.asmel_empresa_token || null,
       ]),
       ignoreExpiration: false,
-      secretOrKey: secret as string,   // ✔ aseguramos string
+      secretOrKey: secret,
     });
   }
 
   validate(payload: any) {
-    return payload; 
+    // 🔥 ESTO ES LO QUE TERMINA EN req.user
+    return {
+      empresaId: payload.empresaId,
+      sub: payload.sub,
+      role: payload.role,
+    };
   }
 }

@@ -296,4 +296,6 @@ export class SuperAdminController {
   eliminarPerfil(@Param('id') id: string) {
     return this.service.eliminarPerfilExamen(id);
   }
+
+  
 }

@@ -15,6 +15,9 @@ import { AvailabilityModule } from './availability/availability.module';
 import { SedeModule } from './sedes/sede.module';
 import { RecepcionModule } from './staff/recepcion/recepcion.module';
 import { GeoModule } from './zona-geografica/geo.module';
+import { PracticasModule } from './practicas/practicas.module';
+import { PreInformesModule } from './pre-informes/pre-informes.module';
+import { ServiciosModule } from './servicios/servicios.module';
 
 @Module({
   imports: [
@@ -54,6 +57,9 @@ import { GeoModule } from './zona-geografica/geo.module';
     SedeModule,
     RecepcionModule,
     GeoModule,
+    PracticasModule,
+    PreInformesModule,
+    ServiciosModule,
   ],
 })
 export class AppModule {}

@@ -1,57 +1,53 @@
-import { Schema, Prop, SchemaFactory } from '@nestjs/mongoose';
-import mongoose from 'mongoose';
-import { Document } from 'mongoose';
+import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
+import { Document, Types } from 'mongoose';
 
 export type PerfilExamenDocument = PerfilExamen & Document;
 
 @Schema({ timestamps: true })
 export class PerfilExamen {
-
-  // ✅ AHORA SE LLAMA "puesto" EN TODO EL SISTEMA
-  @Prop({ required: true })
+  // =========================
+  // PUESTO
+  // =========================
+  @Prop({ required: true, trim: true })
   puesto: string;
 
-  // ✅ Estudios con sector
+  // =========================
+  // TIPO DE EXAMEN
+  // =========================
   @Prop({
-    type: [
-      {
-        nombre: { type: String, required: true },
-        sector: { type: String, required: true },
-      },
-    ],
+    required: true,
+    enum: ['ingreso', 'periodico', 'egreso'],
+    index: true,
+  })
+  tipo: 'ingreso' | 'periodico' | 'egreso';
+
+  // =========================
+  // PRÁCTICAS ASOCIADAS (CÓDIGOS)
+  // =========================
+  @Prop({
+    type: [String],
+    required: true,
     default: [],
   })
-  estudios: {
-    nombre: string;
-    sector: string;
-  }[];
+  practicasPerfil: string[]; // ['100','400','503']
 
-  // ✅ Empresa
+  // =========================
+  // EMPRESA
+  // =========================
   @Prop({
-    type: mongoose.Schema.Types.ObjectId,
+    type: Types.ObjectId,
     ref: 'Empresa',
     required: true,
+    index: true,
   })
-  empresa: any;
+  empresa: Types.ObjectId;
 
-  // ✅ Auditoría
-  @Prop({
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'StaffUser',
-    required: false,
-  })
-  creadoPor: any;
-
-  // ✅ Estado
-  @Prop({ default: true })
+  // =========================
+  // ESTADO
+  // =========================
+  @Prop({ default: true, index: true })
   activo: boolean;
 }
 
 export const PerfilExamenSchema =
   SchemaFactory.createForClass(PerfilExamen);
-
-// ✅ ÍNDICE ÚNICO CORRECTO (empresa + puesto)
-PerfilExamenSchema.index(
-  { empresa: 1, puesto: 1 },
-  { unique: true },
-);

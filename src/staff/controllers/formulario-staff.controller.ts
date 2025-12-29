@@ -1,4 +1,3 @@
-
 import {
   Controller,
   Get,
@@ -8,35 +7,44 @@ import {
   UseGuards,
 } from '@nestjs/common';
 
-import { JwtStaffGuard } from '../../auth/guards/staff-jwt.guard';
 import { FormulariosService } from '../../formularios/formulario.service';
 
+import { JwtAuthGuard } from '../../auth/guards/jwt.guard';
+import { RolesGuard } from '../../auth/guards/roles.guard';
+import { StaffPermisoGuard } from '../../auth/guards/staff-permiso.guard';
+
+import { Roles } from '../../auth/decorators/roles.decorator';
+import { StaffPermiso } from '../../auth/decorators/staff-permiso.decorator';
+
+import { Role } from '../../auth/roles.enum';
+import { StaffPermisoEnum } from '../../auth/enums/staff-permiso.enum';
+
 @Controller('staff/formularios')
+@UseGuards(JwtAuthGuard, RolesGuard, StaffPermisoGuard)
+@Roles(Role.Staff)
+@StaffPermiso(StaffPermisoEnum.FORMULARIOS)
 export class FormularioStaffController {
   constructor(private readonly service: FormulariosService) {}
 
   // ----------------------------------------------------
-  // 📌 1) Listar todos los formularios pendientes
+  // 📌 1) Listar formularios pendientes
   // ----------------------------------------------------
-  @UseGuards(JwtStaffGuard)
   @Get('pendientes')
   listarPendientes() {
     return this.service.listarPendientes();
   }
 
   // ----------------------------------------------------
-  // 📌 2) Obtener información completa de un formulario
+  // 📌 2) Obtener formulario por ID
   // ----------------------------------------------------
-  @UseGuards(JwtStaffGuard)
   @Get(':id')
   obtenerUno(@Param('id') id: string) {
     return this.service.buscarPorId(id);
   }
 
   // ----------------------------------------------------
-  // 📌 3) Responder un formulario y pasarlo a "en_progreso"
+  // 📌 3) Responder formulario (pendiente → en_progreso)
   // ----------------------------------------------------
-  @UseGuards(JwtStaffGuard)
   @Patch(':id/responder')
   responder(
     @Param('id') id: string,
@@ -46,9 +54,8 @@ export class FormularioStaffController {
   }
 
   // ----------------------------------------------------
-  // 📌 4) Marcar un formulario como "resuelto"
+  // 📌 4) Resolver formulario (en_progreso → resuelto)
   // ----------------------------------------------------
-  @UseGuards(JwtStaffGuard)
   @Patch(':id/resolver')
   resolver(@Param('id') id: string) {
     return this.service.resolver(id);

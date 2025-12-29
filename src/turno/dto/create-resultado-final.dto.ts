@@ -1,20 +1,44 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { IsArray, IsEnum, IsString, ValidateNested } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import {
+  IsArray,
+  IsEnum,
+  IsOptional,
+  IsString,
+  ValidateNested,
+} from 'class-validator';
 import { Type } from 'class-transformer';
-import { ResultadoEstudioDto } from './resultado-estudio.dto';
+
+import { ResultadoPracticaDto } from './resultado-practicas.dto';
 
 export class CreateResultadoFinalDto {
-  @ApiProperty({ type: [ResultadoEstudioDto] })
+  // ============================
+  // PRÁCTICAS / ESTUDIOS REALIZADOS
+  // (nombre mantenido por compatibilidad)
+  // ============================
+  @ApiProperty({
+    type: [ResultadoPracticaDto],
+  })
   @IsArray()
   @ValidateNested({ each: true })
-  @Type(() => ResultadoEstudioDto)
-  estudios: ResultadoEstudioDto[];
+  @Type(() => ResultadoPracticaDto)
+  practicas: ResultadoPracticaDto[];
 
-  @ApiProperty({ enum: ['A', 'B', 'C'] })
+  // ============================
+  // APTITUD FINAL
+  // ============================
+  @ApiProperty({
+    enum: ['A', 'B', 'C'],
+  })
   @IsEnum(['A', 'B', 'C'])
   aptitud: 'A' | 'B' | 'C';
 
-  @ApiProperty({ required: false })
+  // ============================
+  // OBSERVACIÓN GENERAL (OPCIONAL)
+  // ============================
+  @ApiPropertyOptional({
+    example: 'Apto sin restricciones',
+  })
+  @IsOptional()
   @IsString()
-  observacionGeneral: string;
+  observacionGeneral?: string;
 }

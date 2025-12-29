@@ -10,12 +10,22 @@ import {
   Body,
 } from '@nestjs/common';
 
-import { ApiTags, ApiOperation, ApiParam, ApiConsumes, ApiBody } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiParam,
+  ApiConsumes,
+  ApiBody,
+} from '@nestjs/swagger';
 
 import { FileInterceptor } from '@nestjs/platform-express';
 import { Express } from 'express';
 
 import { JwtStaffGuard } from '../../auth/guards/staff-jwt.guard';
+import { StaffPermisoGuard } from '../../auth/guards/staff-permiso.guard';
+
+import { StaffPermiso } from '../../auth/decorators/staff-permiso.decorator';
+import { StaffPermisoEnum } from '../../auth/enums/staff-permiso.enum';
 
 import { TurnoService } from '../../turno/turno.service';
 import { PdfStorageService } from '../../examenes/pdf-storage.service';
@@ -24,7 +34,8 @@ import { CreateResultadoFinalDto } from '../../turno/dto/create-resultado-final.
 
 @ApiTags('Staff - Exámenes')
 @Controller('staff/examenes')
-@UseGuards(JwtStaffGuard)
+@UseGuards(JwtStaffGuard, StaffPermisoGuard)
+@StaffPermiso(StaffPermisoEnum.EXAMENES)
 export class StaffExamenesController {
   constructor(
     private readonly turnoService: TurnoService,
@@ -52,7 +63,13 @@ export class StaffExamenesController {
   async listarHoy() {
     const hoy = new Date().toISOString().split('T')[0];
     const turnos = await this.turnoService.listarExamenesConfirmados();
-    return turnos.filter(t => t.fecha === hoy);
+
+    return turnos.filter((t: any) => {
+      if (!t.fecha) return false;
+      return (
+        new Date(t.fecha).toISOString().split('T')[0] === hoy
+      );
+    });
   }
 
   // ===============================
@@ -74,7 +91,7 @@ export class StaffExamenesController {
   })
   @ApiParam({
     name: 'fecha',
-    example: '2025-01-31',
+    example: '2025-12-26',
     description: 'Fecha en formato YYYY-MM-DD',
   })
   @Get('por-fecha/:fecha')
@@ -120,15 +137,10 @@ export class StaffExamenesController {
   }
 
   // ===============================
-  // CARGAR RESULTADO FINAL (CREATE)
-  // CONFIRMADO → REALIZADO
+  // CARGAR RESULTADO FINAL
   // ===============================
   @ApiOperation({
-    summary: 'Cargar resultado final del examen (CONFIRMADO → REALIZADO)',
-  })
-  @ApiParam({
-    name: 'id',
-    description: 'ID del turno',
+    summary: 'Cargar resultado final del examen',
   })
   @Patch('turnos/:id/resultado-final')
   cargarResultadoFinal(

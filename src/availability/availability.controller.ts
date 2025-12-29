@@ -1,11 +1,4 @@
-import {
-  Controller,
-  Get,
-  Query,
-  Req,
-  UseGuards,
-} from '@nestjs/common';
-
+import { Controller, Header, Get, Query, Req, Res, UseGuards } from '@nestjs/common';  
 import {
   ApiTags,
   ApiOperation,
@@ -15,7 +8,7 @@ import {
 
 import { AvailabilityService } from './availability.service';
 import { JwtEmpresaGuard } from '../auth/guards/jwt-empresa.guard';
-import { Request } from 'express';
+
 
 @ApiTags('Empresa - Disponibilidad')
 @Controller('empresa/disponibilidad')
@@ -39,15 +32,16 @@ export class AvailabilityController {
   @ApiCookieAuth('asmel_empresa_token')
   @UseGuards(JwtEmpresaGuard)
   @Get()
-  async getDisponibilidad(
-    @Req() req: Request,
-    @Query('fecha') fecha: string,
-  ) {
-    if (!fecha) {
-      return { message: 'La fecha es requerida ?fecha=YYYY-MM-DD' };
-    }
-
-    // ✅ DISPONIBILIDAD GLOBAL (NO por empresa)
-    return this.availabilityService.getDisponibilidad(fecha);
+@Header('Cache-Control', 'no-store')
+@Header('Pragma', 'no-cache')
+@Header('Expires', '0')
+async getDisponibilidad(
+  @Query('fecha') fecha: string,
+) {
+  if (!fecha) {
+    return { message: 'La fecha es requerida ?fecha=YYYY-MM-DD' };
   }
+
+  return this.availabilityService.getDisponibilidad(fecha);
+}
 }
