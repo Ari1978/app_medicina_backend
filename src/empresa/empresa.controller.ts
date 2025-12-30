@@ -10,7 +10,6 @@ import {
   Param,
   Res,
 } from '@nestjs/common';
-
 import {
   ApiTags,
   ApiOperation,
@@ -18,7 +17,6 @@ import {
   ApiQuery,
   ApiCookieAuth,
 } from '@nestjs/swagger';
-
 import { Request, Response } from 'express';
 
 import { EmpresaService } from './empresa.service';
@@ -32,15 +30,15 @@ import { JwtEmpresaGuard } from '../auth/guards/jwt-empresa.guard';
 import { TurnoService } from '../turno/turno.service';
 
 @ApiTags('Empresa - Auth & Perfil')
-@Controller('empresa')
+@Controller('empresa') // ✅ prefijo correcto
 export class EmpresaController {
   constructor(
     private readonly empresaService: EmpresaService,
-    private readonly turnosService: TurnoService, // ✅ INYECTADO
+    private readonly turnosService: TurnoService,
   ) {}
 
   // ============================================================
-  // ✔ LOGIN EMPRESA
+  // LOGIN EMPRESA
   // ============================================================
   @ApiOperation({ summary: 'Login de empresa' })
   @ApiBody({
@@ -53,93 +51,97 @@ export class EmpresaController {
       required: ['cuit', 'password'],
     },
   })
- @Post('login')
-async login(
-  @Body() body: { cuit: string; password: string },
-  @Res() res: Response,
-) {
-  const { cuit, password } = body;
+  @Post('login')
+  async login(
+    @Body() body: { cuit: string; password: string },
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const { cuit, password } = body;
 
-  const empresa = await this.empresaService.loginEmpresa(cuit, password);
+    const empresa = await this.empresaService.validarCredenciales(cuit, password);
 
-  if (empresa.mustChangePassword) {
-    return res.json({
-      ok: true,
-      mustChangePassword: true,
-      empresaId: empresa._id,
-      numeroCliente: empresa.numeroCliente || null,
-      message: 'Debe cambiar la contraseña antes de continuar',
+
+    if (empresa.mustChangePassword) {
+      return {
+        ok: true,
+        mustChangePassword: true,
+        empresaId: empresa._id,
+        numeroCliente: empresa.numeroCliente || null,
+        message: 'Debe cambiar la contraseña antes de continuar',
+      };
+    }
+
+    const token = signEmpresaToken({
+      empresaId: empresa._id.toString(),
+      role: 'empresa',
     });
+
+    setEmpresaCookie(res, token);
+
+    return {
+      ok: true,
+      message: 'Login exitoso',
+      empresa: {
+        id: empresa._id,
+        cuit: empresa.cuit,
+        razonSocial: empresa.razonSocial,
+        email1: empresa.email1,
+        numeroCliente: empresa.numeroCliente || null,
+      },
+    };
   }
 
-  const token = signEmpresaToken({
-    empresaId: empresa._id.toString(),
-    role: 'empresa',
-  });
+  // ============================================================
+  // PERFIL EMPRESA LOGUEADA
+  // ============================================================
+  @ApiOperation({
+    summary: 'Obtener perfil de la empresa autenticada',
+  })
+  @ApiCookieAuth('asmel_empresa_token')
+  @UseGuards(JwtEmpresaGuard)
+  @Get('me')
+  async me(
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    res.set({
+      'Cache-Control':
+        'no-store, no-cache, must-revalidate, proxy-revalidate',
+      Pragma: 'no-cache',
+      Expires: '0',
+    });
 
-  setEmpresaCookie(res, token);
+    const user = req.user as { empresaId: string };
 
-  return res.json({
-    ok: true,
-    message: 'Login exitoso',
-    empresa: {
+    const empresa =
+      await this.empresaService.findById(user.empresaId);
+    if (!empresa)
+      throw new NotFoundException('Empresa no encontrada');
+
+    return {
       id: empresa._id,
       cuit: empresa.cuit,
       razonSocial: empresa.razonSocial,
       email1: empresa.email1,
       numeroCliente: empresa.numeroCliente || null,
-    },
-  });
-}
-
-
-  // ============================================================
-  // ✔ PERFIL EMPRESA LOGUEADA
-  // ============================================================
-  @ApiOperation({
-    summary:
-      'Obtener perfil de la empresa autenticada',
-  })
-  @ApiCookieAuth('asmel_empresa_token')
-  @UseGuards(JwtEmpresaGuard)
-  @Get('me')
-@UseGuards(JwtEmpresaGuard)
-async me(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
-  res.set({
-    'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
-    Pragma: 'no-cache',
-    Expires: '0',
-  });
-
-  const user = req.user as { empresaId: string };
-
-  const empresa = await this.empresaService.findById(user.empresaId);
-  if (!empresa) throw new NotFoundException('Empresa no encontrada');
-
-  return {
-    id: empresa._id,
-    cuit: empresa.cuit,
-    razonSocial: empresa.razonSocial,
-    email1: empresa.email1,
-    numeroCliente: empresa.numeroCliente || null,
-    role: 'empresa', // 🔑 IMPORTANTE
-  };
-}
+      role: 'empresa',
+    };
+  }
 
   // ============================================================
-  // ✔ LOGOUT
+  // LOGOUT
   // ============================================================
   @ApiOperation({ summary: 'Logout de empresa' })
   @Post('logout')
   async logout(
-    @Req() req: Request & { res: Response },
+    @Res({ passthrough: true }) res: Response,
   ) {
-    clearEmpresaCookie(req.res);
+    clearEmpresaCookie(res);
     return { ok: true, message: 'Logout OK' };
   }
 
   // ============================================================
-  // ✔ BUSCADOR DE EMPRESAS
+  // BUSCAR EMPRESAS
   // ============================================================
   @ApiOperation({ summary: 'Buscar empresas' })
   @ApiQuery({
@@ -153,11 +155,8 @@ async me(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
   }
 
   // ============================================================
-  // ✔ DESCARGAR PDF RESUMEN DEL TURNO
+  // DESCARGAR PDF RESUMEN TURNO
   // ============================================================
-  @ApiOperation({
-    summary: 'Descargar PDF resumen del turno',
-  })
   @ApiCookieAuth('asmel_empresa_token')
   @UseGuards(JwtEmpresaGuard)
   @Get('turnos/:id/pdf-resumen')
@@ -166,9 +165,7 @@ async me(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
     @Res() res: Response,
   ) {
     const pdfBuffer =
-      await this.turnosService.generarPdfResumen(
-        turnoId,
-      );
+      await this.turnosService.generarPdfResumen(turnoId);
 
     res.set({
       'Content-Type': 'application/pdf',

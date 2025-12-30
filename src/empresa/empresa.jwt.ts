@@ -2,6 +2,7 @@ import { Response } from 'express';
 import { sign } from 'jsonwebtoken';
 
 const EMPRESA_COOKIE = 'asmel_empresa_token';
+const isProd = process.env.NODE_ENV === 'production';
 
 export function signEmpresaToken(payload: any) {
   const secret = process.env.JWT_SECRET;
@@ -15,8 +16,8 @@ export function signEmpresaToken(payload: any) {
 export function setEmpresaCookie(res: Response, token: string) {
   res.cookie(EMPRESA_COOKIE, token, {
     httpOnly: true,
-    secure: true,
-    sameSite: 'none',
+    secure: isProd,
+    sameSite: isProd ? 'none' : 'lax',
     path: '/',
     maxAge: 7 * 24 * 60 * 60 * 1000,
   });
@@ -25,8 +26,8 @@ export function setEmpresaCookie(res: Response, token: string) {
 export function clearEmpresaCookie(res: Response) {
   res.clearCookie(EMPRESA_COOKIE, {
     httpOnly: true,
-    secure: true,
-    sameSite: 'none',
+    secure: isProd,
+    sameSite: isProd ? 'none' : 'lax',
     path: '/',
   });
 }
